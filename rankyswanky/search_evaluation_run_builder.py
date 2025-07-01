@@ -1,6 +1,6 @@
 from typing import Callable
-from rankyswanky.query_result_builder import QueryResultBuilder, QueryResultDirector
-from rankyswanky.models_retrieval_eval import QueryResult, RankedSearchResult, SearchEvaluationRun, TestConfiguration
+from rankyswanky.query_result_builder import QueryResultsBuilder, QueryResultsDirector
+from rankyswanky.models_retrieval_eval import RetrievedDocumentsForQuery, SearchEvaluationRun, TestConfiguration, AggregatedRetrievalMetrics
 
 class SearchEvaluationRunBuilder:
     """Builder for SearchEvaluationRun objects."""
@@ -8,25 +8,25 @@ class SearchEvaluationRunBuilder:
     def __init__(self) -> None:
         """Initialize the builder with default values."""
         self._test_configuration = None  # type: Optional[TestConfiguration]
-        self._query_results: list[QueryResult] = []
-        self._retrieval_metrics = None  # type: Optional[MetricsRetrieval]
+        self._query_results: list[RetrievedDocumentsForQuery] = []
+        self._retrieval_metrics = None  # type: Optional[AggregatedRetrievalMetrics]
 
     def set_test_configuration(self, test_configuration: TestConfiguration) -> 'SearchEvaluationRunBuilder':
         """Set the test configuration for the evaluation run."""
         self._test_configuration = test_configuration
         return self
 
-    def add_query_result(self, query_result: QueryResult) -> 'SearchEvaluationRunBuilder':
-        """Add a QueryResult to the evaluation run."""
+    def add_query_result(self, query_result: RetrievedDocumentsForQuery) -> 'SearchEvaluationRunBuilder':
+        """Add a QueryResults to the evaluation run."""
         self._query_results.append(query_result)
         return self
 
-    def set_query_results(self, query_results: list[QueryResult]) -> 'SearchEvaluationRunBuilder':
-        """Set the list of QueryResults for the evaluation run."""
+    def set_query_results(self, query_results: list[RetrievedDocumentsForQuery]) -> 'SearchEvaluationRunBuilder':
+        """Set the list of QueryResultss for the evaluation run."""
         self._query_results = query_results
         return self
 
-    def set_retrieval_metrics(self, retrieval_metrics: 'MetricsRetrieval') -> 'SearchEvaluationRunBuilder':
+    def set_retrieval_metrics(self, retrieval_metrics: 'AggregatedRetrievalMetrics') -> 'SearchEvaluationRunBuilder':
         """Set the retrieval metrics for the evaluation run."""
         self._retrieval_metrics = retrieval_metrics
         return self
@@ -37,8 +37,8 @@ class SearchEvaluationRunBuilder:
             raise ValueError("Test configuration must be set.")
         return SearchEvaluationRun(
             test_configuration=self._test_configuration,
-            search_results=self._query_results,
-            retrieval_metrics=self._retrieval_metrics
+            per_query_results=self._query_results,
+            overall_retrieval_metrics=self._retrieval_metrics
         )
     
 class SearchEvaluationRunDirector:
@@ -47,8 +47,8 @@ class SearchEvaluationRunDirector:
     def __init__(self, builder: SearchEvaluationRunBuilder) -> None:
         """Initialize the director with a builder."""
         self._builder = builder
-        query_result_builder = QueryResultBuilder()
-        self._query_result_director = QueryResultDirector(query_result_builder)
+        query_result_builder = QueryResultsBuilder()
+        self._query_result_director = QueryResultsDirector(query_result_builder)
 
     def construct(self, test_configuration: TestConfiguration, queries: list[str], retriever: Callable[[str], list[str]] ) -> SearchEvaluationRun:
         """Construct a SearchEvaluationRun using the provided parameters."""

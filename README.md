@@ -1,5 +1,6 @@
 # 🕺 RankySwanky 🕺  
-   
+> NOTE: This is being actively developed and may change frequently.
+
 **Effortless, annotation-free evaluation for AI search, retrieval, and ranking systems. Let LLMs do the judging — so you can get swanky with your ranks!**  
    
 ---  

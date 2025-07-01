@@ -1,66 +1,66 @@
 from typing import Any
-from rankyswanky.models_retrieval_eval import QueryResult, RankedSearchResult, ResultItemMetrics
+from rankyswanky.models_retrieval_eval import RetrievedDocumentsForQuery, RetrievedDocument, RetrievedDocumentMetrics
 from rankyswanky.calculate_metrics import RelevanceEvaluator
 
-class QueryResultBuilder:
-    """Builder for creating QueryResult objects."""
+class QueryResultsBuilder:
+    """Builder for creating QueryResults objects."""
 
     def __init__(self) -> None:
         """Initializes the builder with a query."""
         self.query: str | None = None
         self.answer: str | None = None
-        # Used to build the RankedSearchResult objects
+        # Used to build the RetrievedDocument objects
         # All have the same length
         self.ranked_search_results: list[str] = []
         self.embeddings: list[float] | None = None
-        self.metrics: list[ResultItemMetrics] | None = None
+        self.metrics: list[RetrievedDocumentMetrics] | None = None
 
-    def set_query(self, query: str) -> "QueryResultBuilder":
+    def set_query(self, query: str) -> "QueryResultsBuilder":
         """Sets the query for the search results."""
         self.query = query
         return self
 
-    def set_ranked_search_results(self, ranked_search_results: list[str]) -> "QueryResultBuilder":
+    def set_ranked_search_results(self, ranked_search_results: list[str]) -> "QueryResultsBuilder":
         """Sets the search results and the rank."""
         self.ranked_search_results = ranked_search_results
         return self
     
-    def set_answer(self, answer: str) -> "QueryResultBuilder":
+    def set_answer(self, answer: str) -> "QueryResultsBuilder":
         """Sets the answer for the query."""
         self.answer = answer
         return self
     
-    def set_embeddings(self, embeddings: list[float]) -> "QueryResultBuilder":
+    def set_embeddings(self, embeddings: list[float]) -> "QueryResultsBuilder":
         """Sets the vector embeddings for the search results."""
         self.embeddings = embeddings
         return self
     
-    def set_metrics(self, metrics: list[ResultItemMetrics]) -> "QueryResultBuilder":
+    def set_metrics(self, metrics: list[RetrievedDocumentMetrics]) -> "QueryResultsBuilder":
         """Sets the metrics for the search results."""
         self.metrics = metrics
         return self
 
-    def build(self) -> QueryResult:
-        """Builds and returns a QueryResult object."""
+    def build(self) -> RetrievedDocumentsForQuery:
+        """Builds and returns a QueryResults object."""
         if self.query is None:
-            raise ValueError("Query must be set before building the QueryResult.")
+            raise ValueError("Query must be set before building the QueryResults.")
         
         if not self.ranked_search_results:
-            raise ValueError("Ranked search results must be set before building the QueryResult.")
+            raise ValueError("Ranked search results must be set before building the QueryResults.")
         
         search_results = [
-            RankedSearchResult(
+            RetrievedDocument(
                 document_content=content,
                 rank=i + 1,
-                vector_embeddings=self.embeddings[i] if self.embeddings else [],
-                metrics=self.metrics[i] if self.metrics else None
+                embedding_vector=self.embeddings[i] if self.embeddings else [],
+                retrieved_document_metrics=self.metrics[i] if self.metrics else None
             )
             for i, content in enumerate(self.ranked_search_results)
         ]
 
-        return QueryResult(
+        return RetrievedDocumentsForQuery(
             query=self.query,
-            search_results=search_results
+            retrieved_documents=search_results
         )
 
 def calculate_cumulative_gain(relevancy_scores: list[float]) -> float:
@@ -88,27 +88,27 @@ def calculate_normalized_cumulative_gain(relevancy_scores: list[float]) -> float
     return cg / ideal_cg
 
 
-class QueryResultDirector:
-    """Director for constructing QueryResult objects using QueryResultBuilder."""
+class QueryResultsDirector:
+    """Director for constructing QueryResults objects using QueryResultsBuilder."""
 
-    def __init__(self, builder: QueryResultBuilder) -> None:
+    def __init__(self, builder: QueryResultsBuilder) -> None:
         """Initializes the director with a query result builder."""
         self.builder = builder
         self.relevance_evaluator = RelevanceEvaluator()
 
-    def _calculate_metrics(self, search_result_content: str, query: str) -> ResultItemMetrics:
+    def _calculate_metrics(self, search_result_content: str, query: str) -> RetrievedDocumentMetrics:
         """Calculates and returns the metrics for the search results."""
         relevance_score = self.relevance_evaluator.get_relevance_score(
             question=query, context=search_result_content
         )
         # Convert a 1-5 score to a 0-1 scale
         normalized_relevance = (relevance_score - 1) / 4 if relevance_score is not None else 0.0
-        return ResultItemMetrics(
+        return RetrievedDocumentMetrics(
             relevance=normalized_relevance,
         )
 
-    def construct(self, query: str, search_results: list[Any]) -> QueryResult:
-        """Constructs a QueryResult using the builder."""
+    def construct(self, query: str, search_results: list[Any]) -> RetrievedDocumentsForQuery:
+        """Constructs a QueryResults using the builder."""
         self.builder.set_ranked_search_results(search_results)
         self.builder.set_query(query)
 
@@ -123,8 +123,8 @@ class QueryResultDirector:
 
 if __name__ == "__main__":
     # Example usage
-    builder = QueryResultBuilder()
-    director = QueryResultDirector(builder)
+    builder = QueryResultsBuilder()
+    director = QueryResultsDirector(builder)
     
     query = "What is the capital of France?"
     search_results = [
