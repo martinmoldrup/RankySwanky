@@ -1,6 +1,6 @@
 from typing import Callable
-from rankyswanky.query_result_builder import QueryResultsBuilder, QueryResultsDirector
-from rankyswanky.models_retrieval_eval import RetrievedDocumentsForQuery, SearchEvaluationRun, TestConfiguration, AggregatedRetrievalMetrics
+from rankyswanky.retrieved_documents_for_query_builder import RetrievedDocumentsForQueryBuilder, RetrievedDocumentsForQueryDirector
+from rankyswanky.retrieval_evaluation_models import RetrievedDocumentsForQuery, SearchEvaluationRun, TestConfiguration, AggregatedRetrievalMetrics
 
 class SearchEvaluationRunBuilder:
     """Builder for SearchEvaluationRun objects."""
@@ -47,8 +47,8 @@ class SearchEvaluationRunDirector:
     def __init__(self, builder: SearchEvaluationRunBuilder) -> None:
         """Initialize the director with a builder."""
         self._builder = builder
-        query_result_builder = QueryResultsBuilder()
-        self._query_result_director = QueryResultsDirector(query_result_builder)
+        query_result_builder = RetrievedDocumentsForQueryBuilder()
+        self._query_result_director = RetrievedDocumentsForQueryDirector(query_result_builder)
 
     def construct(self, test_configuration: TestConfiguration, queries: list[str], retriever: Callable[[str], list[str]] ) -> SearchEvaluationRun:
         """Construct a SearchEvaluationRun using the provided parameters."""

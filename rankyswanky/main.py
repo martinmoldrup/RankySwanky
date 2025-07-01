@@ -1,7 +1,7 @@
 """Defines the main entry point and function/class signatures for RankySwanky evaluation."""
 import asyncio
 from typing import Callable, List, Any, Dict
-from rankyswanky.models_retrieval_eval import SearchEvaluationRun, QueryResult
+from rankyswanky.retrieval_evaluation_models import SearchEvaluationRun, QueryResult
 
 
 
