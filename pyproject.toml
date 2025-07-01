@@ -1,0 +1,19 @@
+[project]
+name = "rankyswanky"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.3.25",
+    "langchain-openai>=0.3.24",
+    "ragas>=0.2.15",
+]
+
+[dependency-groups]
+dev = [
+    "erdantic>=1.1.0.post1",
+    "mypy>=1.16.1",
+    "pytest>=8.4.1",
+    "ruff>=0.12.0",
+]
