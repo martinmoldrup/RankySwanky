@@ -18,6 +18,8 @@ class TestConfiguration(BaseModel):
 
 
 
+
+
 class AggregatedRetrievalMetrics(BaseModel):
     """Aggregated metrics for evaluating retrieval systems."""
 

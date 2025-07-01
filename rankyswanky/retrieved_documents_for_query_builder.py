@@ -1,9 +1,9 @@
 from typing import Any
-from rankyswanky.models_retrieval_eval import RetrievedDocumentsForQuery, RetrievedDocument, RetrievedDocumentMetrics
-from rankyswanky.calculate_metrics import RelevanceEvaluator
+from rankyswanky.retrieval_evaluation_models import RetrievedDocumentsForQuery, RetrievedDocument, RetrievedDocumentMetrics
+from rankyswanky.retreved_document_metrics import RelevanceEvaluator
 
-class QueryResultsBuilder:
-    """Builder for creating QueryResults objects."""
+class RetrievedDocumentsForQueryBuilder:
+    """Builder for creating RetrievedDocumentsForQuery objects."""
 
     def __init__(self) -> None:
         """Initializes the builder with a query."""
@@ -15,38 +15,38 @@ class QueryResultsBuilder:
         self.embeddings: list[float] | None = None
         self.metrics: list[RetrievedDocumentMetrics] | None = None
 
-    def set_query(self, query: str) -> "QueryResultsBuilder":
+    def set_query(self, query: str) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the query for the search results."""
         self.query = query
         return self
 
-    def set_ranked_search_results(self, ranked_search_results: list[str]) -> "QueryResultsBuilder":
+    def set_ranked_search_results(self, ranked_search_results: list[str]) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the search results and the rank."""
         self.ranked_search_results = ranked_search_results
         return self
     
-    def set_answer(self, answer: str) -> "QueryResultsBuilder":
+    def set_answer(self, answer: str) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the answer for the query."""
         self.answer = answer
         return self
     
-    def set_embeddings(self, embeddings: list[float]) -> "QueryResultsBuilder":
+    def set_embeddings(self, embeddings: list[float]) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the vector embeddings for the search results."""
         self.embeddings = embeddings
         return self
     
-    def set_metrics(self, metrics: list[RetrievedDocumentMetrics]) -> "QueryResultsBuilder":
+    def set_metrics(self, metrics: list[RetrievedDocumentMetrics]) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the metrics for the search results."""
         self.metrics = metrics
         return self
 
     def build(self) -> RetrievedDocumentsForQuery:
-        """Builds and returns a QueryResults object."""
+        """Builds and returns a RetrievedDocumentsForQuery object."""
         if self.query is None:
-            raise ValueError("Query must be set before building the QueryResults.")
+            raise ValueError("Query must be set before building the RetrievedDocumentsForQuery.")
         
         if not self.ranked_search_results:
-            raise ValueError("Ranked search results must be set before building the QueryResults.")
+            raise ValueError("Ranked search results must be set before building the RetrievedDocumentsForQuery.")
         
         search_results = [
             RetrievedDocument(
@@ -88,10 +88,10 @@ def calculate_normalized_cumulative_gain(relevancy_scores: list[float]) -> float
     return cg / ideal_cg
 
 
-class QueryResultsDirector:
-    """Director for constructing QueryResults objects using QueryResultsBuilder."""
+class RetrievedDocumentsForQueryDirector:
+    """Director for constructing RetrievedDocumentsForQuery objects using RetrievedDocumentsForQueryBuilder."""
 
-    def __init__(self, builder: QueryResultsBuilder) -> None:
+    def __init__(self, builder: RetrievedDocumentsForQueryBuilder) -> None:
         """Initializes the director with a query result builder."""
         self.builder = builder
         self.relevance_evaluator = RelevanceEvaluator()
@@ -108,7 +108,7 @@ class QueryResultsDirector:
         )
 
     def construct(self, query: str, search_results: list[Any]) -> RetrievedDocumentsForQuery:
-        """Constructs a QueryResults using the builder."""
+        """Constructs a RetrievedDocumentsForQuery using the builder."""
         self.builder.set_ranked_search_results(search_results)
         self.builder.set_query(query)
 
@@ -123,8 +123,8 @@ class QueryResultsDirector:
 
 if __name__ == "__main__":
     # Example usage
-    builder = QueryResultsBuilder()
-    director = QueryResultsDirector(builder)
+    builder = RetrievedDocumentsForQueryBuilder()
+    director = RetrievedDocumentsForQueryDirector(builder)
     
     query = "What is the capital of France?"
     search_results = [
