@@ -1,5 +1,5 @@
 # 🕺 RankySwanky 🕺  
-> NOTE: This is being actively developed and may change frequently.
+> NOTE: This is being actively developed and the API may change.
 
 **Effortless, annotation-free evaluation for AI search, retrieval, and ranking systems. Let LLMs do the judging — so you can get swanky with your ranks!**  
    
@@ -26,14 +26,11 @@ No data labeling, no configs, no headaches. Instantly see how different engines/
    
 ## Installation  
    
+Not registered in PyPI yet, but you can install directly from GitHub:  
+ 
+
 ```bash  
-pip install rankyswanky  
-```  
-   
-Or install from source:  
-   
-```bash  
-git clone https://github.com/yourusername/rankyswanky.git  
+git clone https://github.com/martinmoldrup/RankySwanky.git
 cd rankyswanky  
 pip install .  
 ```  
@@ -47,7 +44,8 @@ from rankyswanky import RankySwanky
    
 # 1. Wrap your search engine or retriever in a simple Python function:  
 def my_search_engine(query):  
-    # Return a list of results for the given query  
+    # Here you would implement your search logic, e.g. using an API or search library  
+    # For demonstration, we'll just return dummy results
     return ["result1", "result2", "result3"]  
    
 # 2. Create your questions list:  
@@ -62,8 +60,8 @@ ranker = RankySwanky(my_search_engine)
 results = ranker.evaluate(questions)  
    
 # 4. Print or visualize results  
-print(results.summary())  
-results.plot_comparison()  
+results.print_summary()
+results.print_comparison()
 ```  
    
 *Tip: Easily compare two or more engines by evaluating each and comparing summaries!*  
@@ -90,9 +88,7 @@ All metrics are automatically scored by the LLM judge—no labeled data needed!
 ---  
    
 ## Docs & Examples  
-   
-- [📘 Full documentation (coming soon!)](https://github.com/yourusername/rankyswanky/wiki)  
-- [✨ Example notebook (quick tour)](examples/demo.ipynb)  
+Documentation is coming soon!
    
 ---  
    
@@ -111,7 +107,7 @@ MIT License. See [LICENSE](LICENSE) for details.
    
 ---  
    
-**Made with 💃 by [YourName]**    
+**Made with 💖 by Martin Møldrup**    
 *Swank up your search & AI evaluation!*  
   
    
