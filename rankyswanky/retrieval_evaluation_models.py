@@ -5,6 +5,11 @@ Calculate metrics for evaluating retrieval systems and ranking search results.
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field
+import rich
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
 
 
 class TestConfiguration(BaseModel):
@@ -102,7 +107,7 @@ class RetrievedDocumentsForQuery(BaseModel):
 
 
 class SearchEvaluationRun(BaseModel):
-    """A run of the retrieval system, including all queries and aggregated metrics."""
+    """Aggregate root for a single evaluation run for the retrieval system, including all queries and aggregated metrics."""
 
     test_configuration: TestConfiguration
     """The test configuration."""
@@ -113,13 +118,52 @@ class SearchEvaluationRun(BaseModel):
     overall_retrieval_metrics: Optional[AggregatedRetrievalMetrics] = None
     """The aggregated metrics for the retrieval system."""
 
-    def summary(self) -> str:
-        ...
+    def summary(self) -> Panel:
+        """Create a rich-formatted string summarizing the evaluation run."""
 
-    def plot_comparison(self) -> None:
-        ...
+        table: Table = Table(title="Search Evaluation Run Summary")
+
+        table.add_column("Test Configuration", style="cyan", no_wrap=True)
+        table.add_column("Value", style="magenta")
+
+        table.add_row("Embedding Model", self.test_configuration.embedding_model)
+        table.add_row("Distance Function", self.test_configuration.distance_function)
+        table.add_row("Number of Queries", str(len(self.per_query_results)))
+
+        if self.overall_retrieval_metrics:
+            table.add_row("NDCG", f"{self.overall_retrieval_metrics.normalized_discounted_cumulative_gain:.4f}")
+            table.add_row("NCG", f"{self.overall_retrieval_metrics.normalized_cumulative_gain:.4f}")
+            table.add_row("Mean Relevance", f"{self.overall_retrieval_metrics.mean_relevance:.4f}")
+        else:
+            table.add_row("Overall Retrieval Metrics", "Not calculated yet.")
+
+        panel: Panel = Panel(table, title="Evaluation Run", expand=False)
+        return panel
+
+    def print_summary(self) -> None:
+        """Print the summary of the evaluation run in rich format."""
+        console: Console = Console()
+        console.print(self.summary())
+
+class SearchEvaluationRunCollection(BaseModel):
+    """Aggregate root for a collection of SearchEvaluationRun objects, used for comparison and analysis."""
+
+    runs: list[SearchEvaluationRun] = Field(default_factory=list)
+    """List of SearchEvaluationRun instances."""
+
+    def print_summary(self) -> None:
+        """Print the summary of all runs in rich format."""
+        console: Console = Console()
+        for run in self.runs:
+            console.print(run.summary())
+
+    def print_comparison(self) -> None:
+        """Do a rich text print that is comparing the runs and giving an overview."""
+        raise NotImplementedError(
+            "This method is not implemented yet. It should provide a rich text print of the comparison."
+        )
 
 if __name__ == "__main__":
     import erdantic as erd
 
-    erd.draw(SearchEvaluationRun, out="diagram3.png")
+    erd.draw(SearchEvaluationRunCollection, out="domain_model.png")
