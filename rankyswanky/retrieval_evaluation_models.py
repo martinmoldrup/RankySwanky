@@ -22,11 +22,23 @@ class TestConfiguration(BaseModel):
     """The distance function to use."""
 
 
+class RetrievalMetricsAtK(BaseModel):
+    """Metrics for evaluating retrieval systems at a specific rank k."""
 
+    precision: float
+    """Precision at rank k."""
 
+    recall: float
+    """Recall at rank k."""
 
-class AggregatedRetrievalMetrics(BaseModel):
-    """Aggregated metrics for evaluating retrieval systems."""
+    f1_score: float
+    """F1 score at rank k."""
+
+    mean_average_precision: float
+    """
+    Mean Average Precision (MAP) for the retrieved documents.
+    Note: In RetrievedDocumentMetrics this is actually the average precision at k.
+    """
 
     normalized_discounted_cumulative_gain: float
     """Normalized Discounted Cumulative Gain (NDCG)."""
@@ -41,15 +53,24 @@ class AggregatedRetrievalMetrics(BaseModel):
     Alternatively have a number N (N > k) of retrieved documents, and sort the N results when calculating INCG for k
     """
 
+class AggregatedRetrievalMetrics(BaseModel):
+    """Aggregated metrics for evaluating retrieval systems."""
+
+
     mean_relevance: float
     """Relevance of the retrieved documents."""
 
+    mean_novelty: float
+    """Novelty of the retrieved documents, e.g. how much they add new information compared to previous documents."""
+
+    mean_reciprocal_rank: float
+    """Mean Reciprocal Rank (MRR) for the retrieved documents."""
+
+    metrics_at_k: dict[int, RetrievalMetricsAtK ] = Field(default_factory=dict)
 
 
-
-
-class GainsCalculationMethod(Enum):
-    """Enum for the gains calculation method."""
+class GainCalculationMethod(Enum):
+    """Configuration options for different methods for calculating gains for retrieved documents."""
 
     RELEVANCE_ONLY = "relevance_only"
     RELEVANCE_AND_DIVERSITY = "relevance_and_diversity"
@@ -62,15 +83,21 @@ class RetrievedDocumentMetrics(BaseModel):
     relevance: float
     """Relevance of the retrieved document."""
 
-    def calculate_gain(self, method: GainsCalculationMethod) -> float:
+    novelty: float
+    """Novelty of the retrieved document, e.g. how much it adds new information compared to previous documents."""
+
+    # average_precision_at_k: dict[int, AveragePrecisionAtK] = Field(default_factory=dict)
+    # """Average Precision at specific ranks k for the retrieved document."""
+
+    def calculate_gain(self, method: GainCalculationMethod) -> float:
         """Calculate the gain for the retrieved document."""
-        if method == GainsCalculationMethod.RELEVANCE_ONLY:
+        if method == GainCalculationMethod.RELEVANCE_ONLY:
             return self.relevance
         else:
             raise ValueError(f"Unknown method: {method}")
 
 
-class QueryRetrievalMetrics(AggregatedRetrievalMetrics):
+class PerQueryRetrievalMetrics(AggregatedRetrievalMetrics):
     """Metrics for evaluating the retrieval of documents for a query."""  
 
 
@@ -89,9 +116,10 @@ class RetrievedDocument(BaseModel):
     retrieved_document_metrics: Optional[RetrievedDocumentMetrics] = None
     """Metrics for the retrieved document. This will be calculated in a separate step. Will be None if not calculated yet."""
 
+    retrieval_time_ms: int
+    """The time it took to retrieve the document in milliseconds."""
 
-
-class RetrievedDocumentsForQuery(BaseModel):
+class QueryResults(BaseModel):
     """Results for a single query, including all retrieved documents."""
 
     query: str
@@ -100,7 +128,7 @@ class RetrievedDocumentsForQuery(BaseModel):
     retrieved_documents: list[RetrievedDocument] = Field(default_factory=list)
     """The retrieved documents for this query."""
 
-    query_metrics: Optional[QueryRetrievalMetrics] = None
+    query_metrics: Optional[PerQueryRetrievalMetrics] = None
     """Metrics for the query retrieval. This will be calculated in a separate step. Will be None if not calculated yet."""
 
 
@@ -109,10 +137,13 @@ class RetrievedDocumentsForQuery(BaseModel):
 class SearchEvaluationRun(BaseModel):
     """Aggregate root for a single evaluation run for the retrieval system, including all queries and aggregated metrics."""
 
+    engine_name: str
+    """The name of the retrieval engine being evaluated."""
+
     test_configuration: TestConfiguration
     """The test configuration."""
 
-    per_query_results: list[RetrievedDocumentsForQuery] = Field(default_factory=list)
+    per_query_results: list[QueryResults] = Field(default_factory=list)
     """The results for each query in this evaluation run."""
 
     overall_retrieval_metrics: Optional[AggregatedRetrievalMetrics] = None
@@ -121,7 +152,7 @@ class SearchEvaluationRun(BaseModel):
     def summary(self) -> Panel:
         """Create a rich-formatted string summarizing the evaluation run."""
 
-        table: Table = Table(title="Search Evaluation Run Summary")
+        table: Table = Table(title=f"Search Evaluation Run Summary for {self.engine_name}")
 
         table.add_column("Test Configuration", style="cyan", no_wrap=True)
         table.add_column("Value", style="magenta")
@@ -130,12 +161,12 @@ class SearchEvaluationRun(BaseModel):
         table.add_row("Distance Function", self.test_configuration.distance_function)
         table.add_row("Number of Queries", str(len(self.per_query_results)))
 
-        if self.overall_retrieval_metrics:
-            table.add_row("NDCG", f"{self.overall_retrieval_metrics.normalized_discounted_cumulative_gain:.4f}")
-            table.add_row("NCG", f"{self.overall_retrieval_metrics.normalized_cumulative_gain:.4f}")
-            table.add_row("Mean Relevance", f"{self.overall_retrieval_metrics.mean_relevance:.4f}")
-        else:
-            table.add_row("Overall Retrieval Metrics", "Not calculated yet.")
+        # if self.overall_retrieval_metrics:
+        #     table.add_row("NDCG", f"{self.overall_retrieval_metrics.normalized_discounted_cumulative_gain:.4f}")
+        #     table.add_row("NCG", f"{self.overall_retrieval_metrics.normalized_cumulative_gain:.4f}")
+        #     table.add_row("Mean Relevance", f"{self.overall_retrieval_metrics.mean_relevance:.4f}")
+        # else:
+        #     table.add_row("Overall Retrieval Metrics", "Not calculated yet.")
 
         panel: Panel = Panel(table, title="Evaluation Run", expand=False)
         return panel
@@ -158,12 +189,15 @@ class SearchEvaluationRunCollection(BaseModel):
             console.print(run.summary())
 
     def print_comparison(self) -> None:
-        """Do a rich text print that is comparing the runs and giving an overview."""
+        """
+        Do a rich text print that is comparing the runs and giving an overview.
+        Consider using statistical significance testing to compare the results (paired t-test, Wilcoxon signed-rank test, etc.).
+        """
         raise NotImplementedError(
             "This method is not implemented yet. It should provide a rich text print of the comparison."
         )
 
 if __name__ == "__main__":
     import erdantic as erd
-
-    erd.draw(SearchEvaluationRunCollection, out="domain_model.png")
+    dotfile = erd.to_dot(SearchEvaluationRun)
+    erd.draw(SearchEvaluationRunCollection, out="retrieval_evaluation_models.png")

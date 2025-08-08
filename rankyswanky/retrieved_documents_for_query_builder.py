@@ -1,5 +1,5 @@
 from typing import Any
-from rankyswanky.retrieval_evaluation_models import RetrievedDocumentsForQuery, RetrievedDocument, RetrievedDocumentMetrics
+from rankyswanky.retrieval_evaluation_models import QueryResults, RetrievedDocument, RetrievedDocumentMetrics
 from rankyswanky.retreved_document_metrics import RelevanceEvaluator
 
 class RetrievedDocumentsForQueryBuilder:
@@ -12,8 +12,9 @@ class RetrievedDocumentsForQueryBuilder:
         # Used to build the RetrievedDocument objects
         # All have the same length
         self.ranked_search_results: list[str] = []
-        self.embeddings: list[float] | None = None
+        self.embeddings: list[list[float]] | None = None
         self.metrics: list[RetrievedDocumentMetrics] | None = None
+        self.retrieval_time_ms: int | None = None
 
     def set_query(self, query: str) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the query for the search results."""
@@ -22,6 +23,10 @@ class RetrievedDocumentsForQueryBuilder:
 
     def set_ranked_search_results(self, ranked_search_results: list[str]) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the search results and the rank."""
+        if self.embeddings and len(self.embeddings) != len(ranked_search_results):
+            raise ValueError("Ranked search results length must match the number of embeddings.")
+        if self.metrics and len(self.metrics) != len(ranked_search_results):
+            raise ValueError("Ranked search results length must match the number of metrics.")
         self.ranked_search_results = ranked_search_results
         return self
     
@@ -30,17 +35,30 @@ class RetrievedDocumentsForQueryBuilder:
         self.answer = answer
         return self
     
-    def set_embeddings(self, embeddings: list[float]) -> "RetrievedDocumentsForQueryBuilder":
+    def set_embeddings(self, embeddings: list[list[float]]) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the vector embeddings for the search results."""
+        if self.ranked_search_results and len(self.ranked_search_results) != len(embeddings):
+            raise ValueError("Embeddings length must match the number of ranked search results.")
+        if self.metrics and len(self.metrics) != len(embeddings):
+            raise ValueError("Embeddings length must match the number of metrics.")
         self.embeddings = embeddings
         return self
     
     def set_metrics(self, metrics: list[RetrievedDocumentMetrics]) -> "RetrievedDocumentsForQueryBuilder":
         """Sets the metrics for the search results."""
+        if self.ranked_search_results and len(self.ranked_search_results) != len(metrics):
+            raise ValueError("Metrics length must match the number of ranked search results.")
+        if self.embeddings and len(self.embeddings) != len(metrics):
+            raise ValueError("Metrics length must match the number of embeddings.")
         self.metrics = metrics
         return self
+    
+    def set_retrieval_time_ms(self, retrieval_time_ms: int) -> "RetrievedDocumentsForQueryBuilder":
+        """Sets the retrieval time in milliseconds for the search results."""
+        self.retrieval_time_ms = retrieval_time_ms
+        return self
 
-    def build(self) -> RetrievedDocumentsForQuery:
+    def build(self) -> QueryResults:
         """Builds and returns a RetrievedDocumentsForQuery object."""
         if self.query is None:
             raise ValueError("Query must be set before building the RetrievedDocumentsForQuery.")
@@ -53,12 +71,13 @@ class RetrievedDocumentsForQueryBuilder:
                 document_content=content,
                 rank=i + 1,
                 embedding_vector=self.embeddings[i] if self.embeddings else [],
-                retrieved_document_metrics=self.metrics[i] if self.metrics else None
+                retrieved_document_metrics=self.metrics[i] if self.metrics else None,
+                retrieval_time_ms=self.retrieval_time_ms if self.retrieval_time_ms is not None else 0,
             )
             for i, content in enumerate(self.ranked_search_results)
         ]
 
-        return RetrievedDocumentsForQuery(
+        return QueryResults(
             query=self.query,
             retrieved_documents=search_results
         )
@@ -105,12 +124,14 @@ class RetrievedDocumentsForQueryDirector:
         normalized_relevance = (relevance_score - 1) / 4 if relevance_score is not None else 0.0
         return RetrievedDocumentMetrics(
             relevance=normalized_relevance,
+            novelty=0.0,  # TODO: Placeholder for novelty, can be calculated later
         )
 
-    def construct(self, query: str, search_results: list[Any]) -> RetrievedDocumentsForQuery:
+    def construct(self, query: str, search_results: list[Any], retrieval_time_ms: int) -> QueryResults:
         """Constructs a RetrievedDocumentsForQuery using the builder."""
         self.builder.set_ranked_search_results(search_results)
         self.builder.set_query(query)
+        self.builder.set_retrieval_time_ms(retrieval_time_ms)
 
         metrics = [
             self._calculate_metrics(search_result_content, query)
@@ -132,6 +153,7 @@ if __name__ == "__main__":
         "Paris is known for its art, fashion, and culture.",
         "There is a dish called 'French fries' that is popular in many countries.",
     ]
-    
-    query_result = director.construct(query, search_results)
+
+    retrieval_time_ms = 100
+    query_result = director.construct(query, search_results, retrieval_time_ms)
     print(query_result.model_dump())
