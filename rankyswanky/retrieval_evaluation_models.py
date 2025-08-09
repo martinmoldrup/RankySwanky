@@ -4,13 +4,14 @@ Calculate metrics for evaluating retrieval systems and ranking search results.
 
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 import rich
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 
+RELEVANCE_THRESHOLD = 0.5
 
 class TestConfiguration(BaseModel):
     """Test configuration."""
@@ -68,6 +69,22 @@ class AggregatedRetrievalMetrics(BaseModel):
 
     metrics_at_k: dict[int, RetrievalMetricsAtK ] = Field(default_factory=dict)
 
+    def as_dict(self) -> dict[str, float]:
+        """Convert the metrics to a dictionary for easy printing, including metrics at k."""
+        metrics: dict[str, float] = {
+            "mean_relevance": self.mean_relevance,
+            "mean_novelty": self.mean_novelty,
+            "mean_reciprocal_rank": self.mean_reciprocal_rank,
+        }
+        # Unpack metrics_at_k into key-value pairs
+        for k, metric in self.metrics_at_k.items():
+            metrics[f"precision_at_{k}"] = metric.precision
+            metrics[f"recall_at_{k}"] = metric.recall
+            metrics[f"f1_score_at_{k}"] = metric.f1_score
+            metrics[f"mean_average_precision_at_{k}"] = metric.mean_average_precision
+            metrics[f"ndcg_at_{k}"] = metric.normalized_discounted_cumulative_gain
+            metrics[f"ncg_at_{k}"] = metric.normalized_cumulative_gain
+        return metrics
 
 class GainCalculationMethod(Enum):
     """Configuration options for different methods for calculating gains for retrieved documents."""
@@ -86,6 +103,12 @@ class RetrievedDocumentMetrics(BaseModel):
     novelty: float
     """Novelty of the retrieved document, e.g. how much it adds new information compared to previous documents."""
 
+    @computed_field
+    @property
+    def is_relevant(self) -> bool:
+        """Return True if the document is relevant."""
+        return self.relevance > RELEVANCE_THRESHOLD
+
     # average_precision_at_k: dict[int, AveragePrecisionAtK] = Field(default_factory=dict)
     # """Average Precision at specific ranks k for the retrieved document."""
 
@@ -97,9 +120,16 @@ class RetrievedDocumentMetrics(BaseModel):
             raise ValueError(f"Unknown method: {method}")
 
 
-class PerQueryRetrievalMetrics(AggregatedRetrievalMetrics):
-    """Metrics for evaluating the retrieval of documents for a query."""  
+class PerQueryRetrievalMetrics(BaseModel):
+    """Metrics for evaluating the retrieval of documents for a query."""
+    mean_relevance: float
+    """Mean relevance of the retrieved documents."""
 
+    mean_novelty: float
+    """Mean novelty of the retrieved documents."""
+
+    reciprocal_rank_of_first_relevant_document: float
+    """Reciprocal Rank (RR) of the first relevant document."""
 
 class RetrievedDocument(BaseModel):
     """A single retrieved document with ranking and metrics."""
@@ -116,8 +146,6 @@ class RetrievedDocument(BaseModel):
     retrieved_document_metrics: Optional[RetrievedDocumentMetrics] = None
     """Metrics for the retrieved document. This will be calculated in a separate step. Will be None if not calculated yet."""
 
-    retrieval_time_ms: int
-    """The time it took to retrieve the document in milliseconds."""
 
 class QueryResults(BaseModel):
     """Results for a single query, including all retrieved documents."""
@@ -131,6 +159,8 @@ class QueryResults(BaseModel):
     query_metrics: Optional[PerQueryRetrievalMetrics] = None
     """Metrics for the query retrieval. This will be calculated in a separate step. Will be None if not calculated yet."""
 
+    retrieval_time_ms: int
+    """The time it took to retrieve the documents in milliseconds."""
 
 
 
@@ -149,6 +179,14 @@ class SearchEvaluationRun(BaseModel):
     overall_retrieval_metrics: Optional[AggregatedRetrievalMetrics] = None
     """The aggregated metrics for the retrieval system."""
 
+
+
+    def get_mean_retrieval_time_ms(self) -> float:
+        """Get the mean retrieval time in milliseconds for the evaluation run."""
+        if not self.per_query_results:
+            return 0.0
+        return sum(result.retrieval_time_ms for result in self.per_query_results) / len(self.per_query_results)
+
     def summary(self) -> Panel:
         """Create a rich-formatted string summarizing the evaluation run."""
 
@@ -161,12 +199,13 @@ class SearchEvaluationRun(BaseModel):
         table.add_row("Distance Function", self.test_configuration.distance_function)
         table.add_row("Number of Queries", str(len(self.per_query_results)))
 
-        # if self.overall_retrieval_metrics:
-        #     table.add_row("NDCG", f"{self.overall_retrieval_metrics.normalized_discounted_cumulative_gain:.4f}")
-        #     table.add_row("NCG", f"{self.overall_retrieval_metrics.normalized_cumulative_gain:.4f}")
-        #     table.add_row("Mean Relevance", f"{self.overall_retrieval_metrics.mean_relevance:.4f}")
-        # else:
-        #     table.add_row("Overall Retrieval Metrics", "Not calculated yet.")
+        if self.overall_retrieval_metrics:
+            for key, value in self.overall_retrieval_metrics.as_dict().items():
+                table.add_row(key.replace("_", " ").title(), f"{value:.4f}")
+        else:
+            table.add_row("Overall Retrieval Metrics", "Not calculated yet.")
+
+        table.add_row("Mean Retrieval Time (ms)", f"{self.get_mean_retrieval_time_ms():.2f}")
 
         panel: Panel = Panel(table, title="Evaluation Run", expand=False)
         return panel

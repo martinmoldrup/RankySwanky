@@ -11,6 +11,7 @@ from rankyswanky.search_evaluation_run_builder import (
     SearchEvaluationRunBuilder,
     SearchEvaluationRunDirector,
 )
+from rankyswanky.query_results_builder import QueryResultsBuilder
 
 
 class RankySwanky:
@@ -41,8 +42,9 @@ class RankySwanky:
         if test_configuration is None:
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
+        query_results_builder = QueryResultsBuilder()
         search_evaluation_director = SearchEvaluationRunDirector(
-            search_evaluation_builder
+            search_evaluation_builder, query_results_builder
         )
         search_evaluation_run = search_evaluation_director.construct(
             queries=queries,

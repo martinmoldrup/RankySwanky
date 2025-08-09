@@ -1,6 +1,8 @@
 from typing import Callable
-from rankyswanky.retrieved_documents_for_query_builder import RetrievedDocumentsForQueryBuilder, RetrievedDocumentsForQueryDirector
-from rankyswanky.retrieval_evaluation_models import QueryResults, SearchEvaluationRun, TestConfiguration, AggregatedRetrievalMetrics
+from rankyswanky.query_results_builder import QueryResultsBuilder
+from rankyswanky.retrieval_evaluation_models import QueryResults, RetrievedDocumentMetrics, SearchEvaluationRun, TestConfiguration, AggregatedRetrievalMetrics
+from rankyswanky.retreved_document_metrics import RelevanceEvaluator
+from rankyswanky.aggregated_metrics import calculate_aggregated_retrieval_metrics
 import time
 
 class SearchEvaluationRunBuilder:
@@ -8,10 +10,15 @@ class SearchEvaluationRunBuilder:
 
     def __init__(self) -> None:
         """Initialize the builder with default values."""
-        self._test_configuration = None  # type: Optional[TestConfiguration]
+        self.reset()
+
+    def reset(self) -> 'SearchEvaluationRunBuilder':
+        """Reset the builder to its initial state."""
+        self._test_configuration = None  # type: TestConfiguration | None
         self._query_results: list[QueryResults] = []
-        self._retrieval_metrics = None  # type: Optional[AggregatedRetrievalMetrics]
+        self._retrieval_metrics = None  # type: AggregatedRetrievalMetrics | None
         self._engine_name: str | None = None
+        return self
 
     def set_test_configuration(self, test_configuration: TestConfiguration) -> 'SearchEvaluationRunBuilder':
         """Set the test configuration for the evaluation run."""
@@ -53,22 +60,56 @@ class SearchEvaluationRunBuilder:
 class SearchEvaluationRunDirector:
     """Director for building SearchEvaluationRun objects using the builder pattern."""
     _builder: SearchEvaluationRunBuilder
-    def __init__(self, builder: SearchEvaluationRunBuilder) -> None:
+    def __init__(self, evaluation_run_builder: SearchEvaluationRunBuilder, query_results_builder: QueryResultsBuilder) -> None:
         """Initialize the director with a builder."""
-        self._builder = builder
-        query_result_builder = RetrievedDocumentsForQueryBuilder()
-        self._query_result_director = RetrievedDocumentsForQueryDirector(query_result_builder)
+        self._builder = evaluation_run_builder
+        self._query_results_builder = query_results_builder
+        self._relevance_evaluator = RelevanceEvaluator()
 
+ 
     def construct(self, test_configuration: TestConfiguration, queries: list[str], retriever: Callable[[str], list[str]], engine_name: str) -> SearchEvaluationRun:
         """Construct a SearchEvaluationRun using the provided parameters."""
-        query_results = []
+        self._builder.reset()
+        query_results: list[QueryResults] = []
         for query in queries:
+
             start_time: float = time.time()
             results: list[str] = retriever(query)
             elapsed_ms: int = round((time.time() - start_time) * 1000)  # Convert to milliseconds
-            query_results.append(self._query_result_director.construct(query, results, elapsed_ms))
-        return self._builder.set_test_configuration(test_configuration).set_query_results(query_results).set_engine_name(engine_name).build()
+
+            query_result = self.build_query_result_object(query, results, elapsed_ms)
+            query_results.append(query_result)
+
+        aggregated_metrics = calculate_aggregated_retrieval_metrics(query_results)
+        return self._builder.set_test_configuration(test_configuration).set_query_results(query_results).set_engine_name(engine_name).set_retrieval_metrics(aggregated_metrics).build()
+
+    def build_query_result_object(self, query: str, results: list[str], elapsed_ms: int) -> QueryResults:
+        """Build a QueryResults object for a given query and its results."""
+        self._query_results_builder.reset()
+        self._query_results_builder.set_ranked_search_results(results)
+        self._query_results_builder.set_query(query)
+        self._query_results_builder.set_retrieval_time_ms(elapsed_ms)
+
+        metrics = [
+                self._calculate_metrics_for_a_document(search_result_content, query)
+                for search_result_content in results
+            ]
+        self._query_results_builder.set_metrics(metrics)
+        query_result = self._query_results_builder.build()
+        return query_result
     
+    def _calculate_metrics_for_a_document(self, search_result_content: str, query: str) -> RetrievedDocumentMetrics:
+        """Calculate per-document metrics for a given query and result content."""
+        relevance_score = self._relevance_evaluator.get_relevance_score(
+            question=query, context=search_result_content
+        )
+        # Convert a 1-5 score to a 0-1 scale
+        normalized_relevance = (relevance_score - 1) / 4 if relevance_score is not None else 0.0
+        return RetrievedDocumentMetrics(
+            relevance=normalized_relevance,
+            novelty=0.0,  # Placeholder for future novelty metric
+        )
+
 if __name__ == "__main__":
     # Example usage
     builder = SearchEvaluationRunBuilder()
