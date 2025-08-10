@@ -1,5 +1,5 @@
-from rankyswanky.retrieval_evaluation_models import QueryResults, RetrievedDocument, RetrievedDocumentMetrics
-from rankyswanky.aggregated_metrics import calculate_per_query_retrieval_metrics
+from rankyswanky.models.retrieval_evaluation_models import QueryResults, RetrievedDocument, RetrievedDocumentMetrics
+from rankyswanky.utils.aggregated_metrics import calculate_per_query_retrieval_metrics
 
 
 class QueryResultsBuilder:

@@ -2,16 +2,16 @@
 
 import asyncio
 from typing import Callable, List, Dict
-from rankyswanky.retrieval_evaluation_models import (
+from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     SearchEvaluationRunCollection,
     TestConfiguration,
 )
-from rankyswanky.search_evaluation_run_builder import (
+from rankyswanky.builders.search_evaluation_run_builder import (
     SearchEvaluationRunBuilder,
     SearchEvaluationRunDirector,
 )
-from rankyswanky.query_results_builder import QueryResultsBuilder
+from rankyswanky.builders.query_results_builder import QueryResultsBuilder
 
 
 class RankySwanky:

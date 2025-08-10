@@ -1,4 +1,4 @@
-from rankyswanky.retrieval_evaluation_models import AggregatedRetrievalMetrics, QueryResults, RetrievalMetricsAtK, RetrievedDocument, RetrievedDocumentMetrics, PerQueryRetrievalMetrics
+from rankyswanky.models.retrieval_evaluation_models import AggregatedRetrievalMetrics, QueryResults, RetrievalMetricsAtK, RetrievedDocument, RetrievedDocumentMetrics, PerQueryRetrievalMetrics
 
 def calculate_mean_relevance(metrics: list[RetrievedDocumentMetrics]) -> float:
     """Calculates the mean relevance from a list of document metrics."""
