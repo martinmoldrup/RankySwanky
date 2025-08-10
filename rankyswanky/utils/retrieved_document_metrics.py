@@ -34,7 +34,7 @@ class EvaluationResult(pydantic.BaseModel):
     relevance_score_1_to_5: int
     """Relevance score from 1 to 5."""
 
-class RelevanceEvaluator(ABC):
+class RelevanceEvaluatorBase(ABC):
     @abstractmethod
     def set_question(self, question: str) -> None:
         """Set the question for the relevance evaluator."""
@@ -45,7 +45,7 @@ class RelevanceEvaluator(ABC):
         """Get the relevance score of the context to the question using an LLM."""
         pass
 
-class RelevanceEvaluator(RelevanceEvaluator):
+class RelevanceEvaluator(RelevanceEvaluatorBase):
     def __init__(self) -> None:
         self._embeddings_client = AzureOpenAIEmbeddings(
             azure_deployment=AZURE_DEPLOYMENT_EMBEDDINGS,

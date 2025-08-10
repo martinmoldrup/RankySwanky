@@ -14,6 +14,7 @@ from rankyswanky.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
 from rankyswanky.builders.query_results_builder import QueryResultsBuilder
+from rankyswanky.utils.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
 
 
 class RankySwanky:
@@ -45,8 +46,9 @@ class RankySwanky:
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
+        relevance_evaluator = RelevanceEvaluator()
         search_evaluation_director = SearchEvaluationRunDirector(
-            search_evaluation_builder, query_results_builder
+            search_evaluation_builder, query_results_builder, relevance_evaluator
         )
         search_evaluation_run = search_evaluation_director.construct(
             queries=queries,
