@@ -1,7 +1,7 @@
 """
 Calculate metrics for evaluating retrieval systems and ranking search results.
 """
-
+# TODO: Go though and check which values is computed based on other values and move the logic to the domain model.
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field, computed_field
@@ -101,7 +101,12 @@ class RetrievedDocumentMetrics(BaseModel):
     """Relevance of the retrieved document."""
 
     novelty: float
-    """Novelty of the retrieved document, e.g. how much it adds new information compared to previous documents."""
+    """
+    Novelty of the retrieved document, e.g. how much it adds new information compared to previous documents.
+
+    How big a percentage of the validation criteria the retrieved documents satisfy, 
+    is satisfied for the first time, compared with higher ranked documents.
+    """
 
     @computed_field
     @property
@@ -125,7 +130,7 @@ class PerQueryRetrievalMetrics(BaseModel):
     mean_relevance: float
     """Mean relevance of the retrieved documents."""
 
-    mean_novelty: float
+    mean_novelty: float  # TODO: This does not make sense to calculate mean of
     """Mean novelty of the retrieved documents."""
 
     reciprocal_rank_of_first_relevant_document: float
@@ -178,7 +183,6 @@ class SearchEvaluationRun(BaseModel):
 
     overall_retrieval_metrics: Optional[AggregatedRetrievalMetrics] = None
     """The aggregated metrics for the retrieval system."""
-
 
 
     def get_mean_retrieval_time_ms(self) -> float:

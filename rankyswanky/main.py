@@ -9,6 +9,8 @@ from rankyswanky.models.retrieval_evaluation_models import (
 )
 from rankyswanky.builders.search_evaluation_run_builder import (
     SearchEvaluationRunBuilder,
+)
+from rankyswanky.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
 from rankyswanky.builders.query_results_builder import QueryResultsBuilder

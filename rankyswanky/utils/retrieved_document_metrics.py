@@ -1,6 +1,9 @@
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 import os
 import pydantic
+from abc import ABC, abstractmethod
+
+from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 
 AZURE_ENDPOINT: str = "https://gf-oai-gwcml-s-swno.openai.azure.com/"
 AZURE_OPENAI_API_KEY: str = os.getenv("OPENAI_KEY")
@@ -31,14 +34,24 @@ class EvaluationResult(pydantic.BaseModel):
     relevance_score_1_to_5: int
     """Relevance score from 1 to 5."""
 
+class RelevanceEvaluator(ABC):
+    @abstractmethod
+    def set_question(self, question: str) -> None:
+        """Set the question for the relevance evaluator."""
+        pass
 
-class RelevanceEvaluator:
-    def __init__(self):
+    @abstractmethod
+    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
+        """Get the relevance score of the context to the question using an LLM."""
+        pass
+
+class RelevanceEvaluator(RelevanceEvaluator):
+    def __init__(self) -> None:
         self._embeddings_client = AzureOpenAIEmbeddings(
             azure_deployment=AZURE_DEPLOYMENT_EMBEDDINGS,
             azure_endpoint=AZURE_ENDPOINT,
             api_key=AZURE_OPENAI_API_KEY,
-            openai_api_version=AZURE_OPENAI_API_VERSION,
+            api_version=AZURE_OPENAI_API_VERSION,
             max_retries=10,
             timeout=60,
         )
@@ -49,24 +62,37 @@ class RelevanceEvaluator:
             azure_deployment="gpt-4o",
             api_version=AZURE_OPENAI_API_VERSION,
         )
+        self._question: str = ""
 
-        # self._open_chat_llm.bind_tools([EvaluationResult])
+    def set_question(self, question: str) -> None:
+        """Set the question for the relevance evaluator."""
+        self._question = question
 
-
-    def get_relevance_score(self, question: str, context: str) -> int:
+    def get_relevance_score(self, context: str) -> int:
         """Get the relevance score of the context to the question using an LLM."""
         evaluation_result: EvaluationResult = self._open_chat_llm.with_structured_output(EvaluationResult).invoke(
-            SYSTEM_PROMPT.format(question=question, context=context),
+            SYSTEM_PROMPT.format(question=self._question, context=context),
         )
         return evaluation_result.relevance_score_1_to_5
 
+    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
+        """Create retrieved document metrics from the context."""
+        relevance_score = self.get_relevance_score(context)
+        normalized_relevance = (relevance_score - 1) / 4 if relevance_score is not None else 0.0
+        if relevance_score is not None:
+            return RetrievedDocumentMetrics(
+                relevance=normalized_relevance,
+                novelty=0.0,
+            )
+        return None
 
 if __name__ == "__main__":
     evaluator = RelevanceEvaluator()
     # Example usage
     question = "What is the capital of France?"
     context = "The capital of France is Paris."
-    score = evaluator.get_relevance_score(question, context)
+    evaluator.set_question(question)
+    score = evaluator.get_relevance_score(context)
     print(
         f"Relevance score for the question '{question}' with context '{context}': {score}"
     )
