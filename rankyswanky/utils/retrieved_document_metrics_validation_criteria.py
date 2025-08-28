@@ -12,7 +12,9 @@ import json
 from genson import SchemaBuilder
 from typing import Any, Dict
 from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import Perspective, perspectives
+from rankyswanky.models.caching_models import GenAndEvaluateQuestionParameters
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
+from rankyswanky.infrastructure import mapper_domain_to_caching_models, pydantic_caching
 
 class RewrittenAnswersStructuredOutput(BaseModel):
     rewritten_questions: list[str] = Field(
@@ -222,7 +224,23 @@ class RelevanceEvaluator:
     def set_question(self, question: str) -> None:
         self.reset()
         self._question = question
-        self._validation_criteria = extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite())
+        # TODO: Figure out how to move the caching logic and all persistance function to a seperate module (seperation of concerns)
+        persisted_model = pydantic_caching.get_sqlmodel_by_primary_key(
+            model=GenAndEvaluateQuestionParameters,
+            primary_key_value=mapper_domain_to_caching_models.default_gen_eval_id_strategy(query_id=mapper_domain_to_caching_models.default_query_id_strategy(question),perspective_id=mapper_domain_to_caching_models.default_perspective_id_strategy(perspectives[0].to_repr_relevant_to_rewrite()))
+        )
+        if persisted_model:
+            self._validation_criteria = CombinedOutput(
+                question=question,
+                perspective="",
+                rewritten_questions=persisted_model.rewritten_questions,
+                properties_of_a_good_document_containing_all_perspectives=persisted_model.properties_of_a_good_document_containing_all_perspectives,
+            )
+        else:
+            self._validation_criteria = extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite())
+            persistence_obj = mapper_domain_to_caching_models.map_combined_output_to_gen_and_evaluate_params(self._validation_criteria)
+            pydantic_caching.save_sqlmodels_to_db([persistence_obj])
+
         self._validation_criterias_met_history = {validation_criteria: False for validation_criteria in self._validation_criteria.properties_of_a_good_document_containing_all_perspectives}
 
     def calculate_novelty(self, evaluated_criteria: EvaluatedValidationCriterias) -> float | None:

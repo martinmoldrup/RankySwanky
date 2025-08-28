@@ -14,7 +14,7 @@ from rankyswanky.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
 from rankyswanky.builders.query_results_builder import QueryResultsBuilder
-from rankyswanky.utils.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
+from rankyswanky.utils.retrieved_document_metrics import RelevanceEvaluator
 
 
 class RankySwanky:

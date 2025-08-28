@@ -47,7 +47,7 @@ class SearchEvaluationRunDirector:
                 (time.time() - start_time) * 1000
             )  # Convert to milliseconds
 
-            query_result = self.build_query_result_object(query, results, elapsed_ms)
+            query_result = self._build_query_result_object(query, results, elapsed_ms)
             query_results.append(query_result)
 
         aggregated_metrics = calculate_aggregated_retrieval_metrics(query_results)
@@ -59,7 +59,7 @@ class SearchEvaluationRunDirector:
             .build()
         )
 
-    def build_query_result_object(
+    def _build_query_result_object(
         self, query: str, results: list[str], elapsed_ms: int
     ) -> QueryResults:
         """Build a QueryResults object for a given query and its results."""

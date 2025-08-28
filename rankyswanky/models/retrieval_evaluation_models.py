@@ -2,6 +2,7 @@
 Calculate metrics for evaluating retrieval systems and ranking search results.
 """
 # TODO: Go though and check which values is computed based on other values and move the logic to the domain model.
+# TODO: Model distilation - simplify and remove non essential parts.
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field, computed_field

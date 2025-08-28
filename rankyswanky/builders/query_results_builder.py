@@ -85,29 +85,4 @@ class QueryResultsBuilder:
             retrieved_documents=search_results,
             retrieval_time_ms=self.retrieval_time_ms if self.retrieval_time_ms is not None else 0,
             query_metrics=calculate_per_query_retrieval_metrics(search_results) if self.metrics else None
-        )
-
-def calculate_cumulative_gain(relevancy_scores: list[float]) -> float:
-    """Calculate the cumulative gain."""
-    return sum(relevancy_scores)
-
-
-def calculate_discounted_cumulative_gain(relevancy_scores: list[float]) -> float:
-    """Calculate the discounted cumulative gain."""
-    return sum(relevancy / (i + 1) for i, relevancy in enumerate(relevancy_scores))
-
-
-def calculate_normalized_discounted_cumulative_gain(relevancy_scores: list[float]) -> float:
-    """Calculate the normalized discounted cumulative gain."""
-    dcg = calculate_discounted_cumulative_gain(relevancy_scores)
-    ideal_dcg = calculate_discounted_cumulative_gain(sorted(relevancy_scores, reverse=True))
-    return dcg / ideal_dcg if ideal_dcg > 0 else 0.0
-
-
-def calculate_normalized_cumulative_gain(relevancy_scores: list[float]) -> float:
-    """We do not care about the ordering, so we do not do the discounted version."""
-    cg = calculate_cumulative_gain(relevancy_scores)
-    # ideally all relevancy scores are 1.0, so the ideal cumulative gain is the number of relevant contexts
-    ideal_cg = len(relevancy_scores) * 1.0
-    return cg / ideal_cg
-
+        ) 
