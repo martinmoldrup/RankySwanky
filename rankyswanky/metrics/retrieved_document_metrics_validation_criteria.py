@@ -14,7 +14,7 @@ from typing import Any, Dict
 from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import Perspective, perspectives
 from rankyswanky.models.caching_models import GenAndEvaluateQuestionParameters
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
-from rankyswanky.infrastructure import mapper_domain_to_caching_models, pydantic_caching
+from rankyswanky.persistence import mapper_domain_to_caching_models, pydantic_caching
 
 class RewrittenAnswersStructuredOutput(BaseModel):
     rewritten_questions: list[str] = Field(
@@ -185,24 +185,6 @@ def _evaluate_document_properties(
         evaluation=response,
     )
 
-def extract_validation_criterias(
-    question: str,
-    perspective: str,
-    llm: AzureChatOpenAI = open_chat_llm,
-) -> CombinedOutput:
-    """
-    Get combined output of rewritten questions and properties of a correct answer.
-    """
-    rewritten_questions = _generate_perspective_rewritten_questions(question, perspective, llm)
-    properties = _generate_validation_criterias(
-        question, rewritten_questions.rewritten_questions, llm
-    )
-    return CombinedOutput(
-        question=rewritten_questions.question,
-        perspective=rewritten_questions.perspective,
-        rewritten_questions=rewritten_questions.rewritten_questions,
-        properties_of_a_good_document_containing_all_perspectives=properties.properties_of_a_good_document_containing_all_perspectives,
-    )
 
 
 class RelevanceEvaluator:
@@ -215,35 +197,48 @@ class RelevanceEvaluator:
         self._validation_criteria: CombinedOutput | None = None
         self._validation_criterias_met_history: Dict[str, bool] = {}
 
-    def update_validation_criterias_met_history(self, evaluated_criteria: EvaluatedValidationCriterias) -> None:
-        """Updates the history of validation criterias met."""
-        for prop, met in evaluated_criteria.evaluation.items():
-            if met:
-                self._validation_criterias_met_history[prop] = True
-
     def set_question(self, question: str) -> None:
         self.reset()
         self._question = question
-        # TODO: Figure out how to move the caching logic and all persistance function to a seperate module (seperation of concerns)
-        persisted_model = pydantic_caching.get_sqlmodel_by_primary_key(
-            model=GenAndEvaluateQuestionParameters,
-            primary_key_value=mapper_domain_to_caching_models.default_gen_eval_id_strategy(query_id=mapper_domain_to_caching_models.default_query_id_strategy(question),perspective_id=mapper_domain_to_caching_models.default_perspective_id_strategy(perspectives[0].to_repr_relevant_to_rewrite()))
-        )
-        if persisted_model:
-            self._validation_criteria = CombinedOutput(
-                question=question,
-                perspective="",
-                rewritten_questions=persisted_model.rewritten_questions,
-                properties_of_a_good_document_containing_all_perspectives=persisted_model.properties_of_a_good_document_containing_all_perspectives,
-            )
-        else:
-            self._validation_criteria = extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite())
-            persistence_obj = mapper_domain_to_caching_models.map_combined_output_to_gen_and_evaluate_params(self._validation_criteria)
-            pydantic_caching.save_sqlmodels_to_db([persistence_obj])
-
+        self._extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite())
         self._validation_criterias_met_history = {validation_criteria: False for validation_criteria in self._validation_criteria.properties_of_a_good_document_containing_all_perspectives}
 
-    def calculate_novelty(self, evaluated_criteria: EvaluatedValidationCriterias) -> float | None:
+
+    def _extract_validation_criterias(
+        self,
+        question: str,
+        perspective: str,
+        llm: AzureChatOpenAI = open_chat_llm,
+    ) -> None:
+        """
+        Get combined output of rewritten questions and properties of a correct answer.
+        """
+        rewritten_questions = _generate_perspective_rewritten_questions(question, perspective, llm)
+        properties = _generate_validation_criterias(
+            question, rewritten_questions.rewritten_questions, llm
+        )
+        self._validation_criteria = CombinedOutput(
+            question=rewritten_questions.question,
+            perspective=rewritten_questions.perspective,
+            rewritten_questions=rewritten_questions.rewritten_questions,
+            properties_of_a_good_document_containing_all_perspectives=properties.properties_of_a_good_document_containing_all_perspectives,
+        )
+
+    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
+        """Calculates the relevance score of a document based on the question."""
+        if not self._validation_criteria:
+            return None
+        evaluated_criteria = _evaluate_document_properties(
+            question=self._question,
+            properties=self._validation_criteria.properties_of_a_good_document_containing_all_perspectives,
+            document=context
+        )
+        relevance = evaluated_criteria.count_validation_criterias_met() / len(evaluated_criteria)
+        novelty = self._calculate_novelty(evaluated_criteria)
+        self._update_validation_criterias_met_history(evaluated_criteria)
+        return RetrievedDocumentMetrics(relevance=relevance, novelty=novelty if novelty is not None else 0.0,)
+
+    def _calculate_novelty(self, evaluated_criteria: EvaluatedValidationCriterias) -> float | None:
         """
         Calculates how big a percentage of the met validation criteria are met for the first time.
 
@@ -262,46 +257,71 @@ class RelevanceEvaluator:
                     newly_met_criteria_count += 1
         return newly_met_criteria_count / count_of_met_criteria if count_of_met_criteria > 0 else 0
 
-    # @cache_to_sql(output_model=RetrievedDocumentMetrics)
-    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
-        """Calculates the relevance score of a document based on the question."""
-        if not self._validation_criteria:
-            return None
-        evaluated_criteria = _evaluate_document_properties(
-            question=self._question,
-            properties=self._validation_criteria.properties_of_a_good_document_containing_all_perspectives,
-            document=context
-        )
-        relevance = evaluated_criteria.count_validation_criterias_met() / len(evaluated_criteria)
-        novelty = self.calculate_novelty(evaluated_criteria)
-        self.update_validation_criterias_met_history(evaluated_criteria)
-        return RetrievedDocumentMetrics(relevance=relevance, novelty=novelty if novelty is not None else 0.0,)
+    def _update_validation_criterias_met_history(self, evaluated_criteria: EvaluatedValidationCriterias) -> None:
+        """Updates the history of validation criterias met."""
+        for prop, met in evaluated_criteria.evaluation.items():
+            if met:
+                self._validation_criterias_met_history[prop] = True
 
-def main(questions: list[str], documents: list[str]) -> None:
-    """Main function to run the script using RelevanceEvaluator."""
-    for question in questions:
-        for perspective in perspectives:
-            evaluator = RelevanceEvaluator()
-            evaluator.set_question(question)
-            print(f"Original Question: {question}")
-            print("Rewritten Questions:")
-            for rq in evaluator._validation_criteria.rewritten_questions:
-                print(f"- {rq}")
-            print("Properties of a Good Document:")
-            for prop in evaluator._validation_criteria.properties_of_a_good_document_containing_all_perspectives:
-                print(f"- {prop}")
-            print("\n" + "="*50 + "\n")
-            for document in documents:
-                metrics = evaluator.create_retrieved_document_metrics(document)
-                if metrics is not None:
-                    print(f"Evaluation for Document:\n{document}\nResult: {metrics}\n")
-                    print(f"Relevance: {metrics.relevance:.2f}, Novelty: {metrics.novelty:.2f}")
-                else:
-                    print("Could not evaluate document metrics.")
-                print("\n" + "="*50 + "\n")
+
+class RelevanceEvaluatorWithPersistance(RelevanceEvaluator):
+    def _load_cache(self, question: str, perspective: str) -> CombinedOutput | None:
+        persisted_model = pydantic_caching.get_sqlmodel_by_primary_key(
+            model=GenAndEvaluateQuestionParameters,
+            primary_key_value=mapper_domain_to_caching_models.default_gen_eval_id_strategy(query_id=mapper_domain_to_caching_models.default_query_id_strategy(question),perspective_id=mapper_domain_to_caching_models.default_perspective_id_strategy(perspectives[0].to_repr_relevant_to_rewrite()))
+        )
+        if not persisted_model:
+            return None
+        return CombinedOutput(
+            question=question,
+            perspective="",
+            rewritten_questions=persisted_model.rewritten_questions,
+            properties_of_a_good_document_containing_all_perspectives=persisted_model.properties_of_a_good_document_containing_all_perspectives,
+        )
+
+    def _save_cache(self, question: str, perspective: str, model: CombinedOutput) -> None:
+        persistence_obj = mapper_domain_to_caching_models.map_combined_output_to_gen_and_evaluate_params(self._validation_criteria)
+        pydantic_caching.save_sqlmodels_to_db([persistence_obj])
+
+    def _extract_validation_criterias(self, question, perspective, llm = open_chat_llm):
+        # TODO: Figure out how to move the caching logic and all persistance function to a seperate module (seperation of concerns)
+        persisted_model = self._load_cache(question=question, perspective=perspective)
+        if persisted_model:
+            self._validation_criteria = CombinedOutput(
+                question=question,
+                perspective="",
+                rewritten_questions=persisted_model.rewritten_questions,
+                properties_of_a_good_document_containing_all_perspectives=persisted_model.properties_of_a_good_document_containing_all_perspectives,
+            )
+        else:
+            super()._extract_validation_criterias(question, perspective, llm)
+            self._save_cache(question=question, perspective=perspective, model=self._validation_criteria)
 
 
 if __name__ == "__main__":
+    def main(questions: list[str], documents: list[str]) -> None:
+        """Main function to run the script using RelevanceEvaluator."""
+        for question in questions:
+            for perspective in perspectives:
+                evaluator = RelevanceEvaluator()
+                evaluator.set_question(question)
+                print(f"Original Question: {question}")
+                print("Rewritten Questions:")
+                for rq in evaluator._validation_criteria.rewritten_questions:
+                    print(f"- {rq}")
+                print("Properties of a Good Document:")
+                for prop in evaluator._validation_criteria.properties_of_a_good_document_containing_all_perspectives:
+                    print(f"- {prop}")
+                print("\n" + "="*50 + "\n")
+                for document in documents:
+                    metrics = evaluator.create_retrieved_document_metrics(document)
+                    if metrics is not None:
+                        print(f"Evaluation for Document:\n{document}\nResult: {metrics}\n")
+                        print(f"Relevance: {metrics.relevance:.2f}, Novelty: {metrics.novelty:.2f}")
+                    else:
+                        print("Could not evaluate document metrics.")
+                    print("\n" + "="*50 + "\n")
+
     questions = [
         "what is an E-pump?",
         "What is the advantages of IE5 motors?",

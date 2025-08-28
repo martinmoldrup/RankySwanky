@@ -1,0 +1,15 @@
+[importlinter]
+root_packages=
+    rankyswanky
+
+
+[importlinter:contract:my-layers-contract]
+name = My layers contract
+type = layers
+layers =
+    rankyswanky.main
+    rankyswanky.builders
+    rankyswanky.metrics
+    rankyswanky.persistence
+    rankyswanky.models
+    rankyswanky.utils
