@@ -1,6 +1,6 @@
 from typing import Callable
-from rankyswanky.builders.query_results_builder import QueryResultsBuilder
-from rankyswanky.builders.search_evaluation_run_builder import (
+from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
+from rankyswanky.application.builders.search_evaluation_run_builder import (
     SearchEvaluationRunBuilder,
 )
 from rankyswanky.models.retrieval_evaluation_models import (
@@ -9,8 +9,8 @@ from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     TestConfiguration,
 )
-from rankyswanky.metrics.retrieved_document_metrics import RelevanceEvaluatorBase, RelevanceEvaluator
-from rankyswanky.metrics.aggregated_metrics import calculate_aggregated_retrieval_metrics
+from rankyswanky.application.metrics.retrieved_document_metrics import RelevanceEvaluatorBase, RelevanceEvaluator
+from rankyswanky.application.metrics.aggregated_metrics import calculate_aggregated_retrieval_metrics
 import time
 
 

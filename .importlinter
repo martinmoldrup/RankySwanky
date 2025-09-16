@@ -7,12 +7,74 @@ root_packages=
 name = My layers contract
 type = layers
 layers =
-    rankyswanky.main
-    rankyswanky.builders
-    rankyswanky.metrics
-    rankyswanky.persistence
-    rankyswanky.models
-    rankyswanky.utils
+    main
+    # Infrastructure layer - Concrete implementations is dependency injected in main into the application layer
+    adapters
+    # Application layer - Orchestrates use cases and business logic
+    application
+    # Domain layer - Rich domain models and business logic
+    models
+    # Pure functions with no side effects or dependencies on other project modules
+    utils
+containers=
+    rankyswanky
+exhaustive = true
+
+# [importlinter:contract:repositories-contract]
+# name = Repositories Layered Contract
+# type = layers
+# layers =
+#     rankyswanky.repositories
+#     rankyswanky.repositories.persistence
+#     rankyswanky.models
+#     rankyswanky.utils
+
+# [importlinter:contract:repositories-protected-contract]
+# name = Repositories Protected Contract
+# type = protected
+# protected_modules =
+#     rankyswanky.repositories
+# allowed_importers =
+#     # The modules that the protected modules can import from
+#     rankyswanky.repositories.persistence
+#     rankyswanky.models
+#     rankyswanky.utils
+
+# [importlinter:contract:persistence-protected-contract]
+# name = Persistence Protected Contract
+# type = protected
+# protected_modules =
+#     rankyswanky.repositories.persistence
+# allowed_importers =
+#     rankyswanky.models
+#     rankyswanky.utils
+
+
+# [importlinter:contract:utils-protected-contract]
+# name = Utils Protected Contract
+# type = protected
+# protected_modules =
+#     rankyswanky.utils
+# allowed_importers =
+#     # Do not allow utils to do any imports from other project modules
+
+# [importlinter:contract:adapters-protected-contract]
+# name = Adapters Protected Contract
+# type = protected
+# protected_modules =
+#     rankyswanky.adapters
+# allowed_importers =
+#     rankyswanky.utils
+
+# [importlinter:contract:application-protected-contract]
+# name = Application Protected Contract
+# type = protected
+# protected_modules =
+#     rankyswanky.application
+# allowed_importers =
+#     rankyswanky.models
+#     rankyswanky.utils
+
 
 # To run the linter, use the following command:
 # uv run lint-imports

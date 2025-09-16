@@ -1,0 +1,1 @@
+"""Abstract repository interfaces for persistence / caching models."""

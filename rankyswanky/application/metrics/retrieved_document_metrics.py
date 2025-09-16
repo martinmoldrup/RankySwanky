@@ -1,7 +1,7 @@
 from langchain_core.language_models import BaseChatModel
 import os
 import pydantic
-from rankyswanky.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
+from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 from rankyswanky.adapters import llm

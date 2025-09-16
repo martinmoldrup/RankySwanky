@@ -11,13 +11,13 @@ from langchain_core.language_models import BaseChatModel
 import json
 from genson import SchemaBuilder
 from typing import Any, Dict
-from rankyswanky.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
+from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 
 
 from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import Perspective, perspectives
 from rankyswanky.models.caching_models import GenAndEvaluateQuestionParameters
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
-from rankyswanky.persistence import mapper_domain_to_caching_models, pydantic_caching
+from rankyswanky.repositories.persistence import mapper_domain_to_caching_models, pydantic_caching
 
 class RewrittenAnswersStructuredOutput(BaseModel):
     rewritten_questions: list[str] = Field(
