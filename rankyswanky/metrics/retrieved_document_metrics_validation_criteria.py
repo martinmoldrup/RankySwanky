@@ -11,6 +11,9 @@ from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 import json
 from genson import SchemaBuilder
 from typing import Any, Dict
+from rankyswanky.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
+
+
 from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import Perspective, perspectives
 from rankyswanky.models.caching_models import GenAndEvaluateQuestionParameters
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
@@ -187,7 +190,7 @@ def _evaluate_document_properties(
 
 
 
-class RelevanceEvaluator:
+class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
     def __init__(self) -> None:
         self.reset()

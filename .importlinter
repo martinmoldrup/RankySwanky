@@ -3,7 +3,7 @@ root_packages=
     rankyswanky
 
 
-[importlinter:contract:my-layers-contract]
+[importlinter:contract:layers]
 name = My layers contract
 type = layers
 layers =
@@ -13,3 +13,6 @@ layers =
     rankyswanky.persistence
     rankyswanky.models
     rankyswanky.utils
+
+# To run the linter, use the following command:
+# uv run lint-imports

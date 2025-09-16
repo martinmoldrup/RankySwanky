@@ -1,7 +1,7 @@
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 import os
 import pydantic
-from abc import ABC, abstractmethod
+from rankyswanky.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 
@@ -34,16 +34,7 @@ class EvaluationResult(pydantic.BaseModel):
     relevance_score_1_to_5: int
     """Relevance score from 1 to 5."""
 
-class RelevanceEvaluatorBase(ABC):
-    @abstractmethod
-    def set_question(self, question: str) -> None:
-        """Set the question for the relevance evaluator."""
-        pass
 
-    @abstractmethod
-    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
-        """Get the relevance score of the context to the question using an LLM."""
-        pass
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     def __init__(self) -> None:
