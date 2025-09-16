@@ -4,7 +4,7 @@ Functions for caching and retrieving models from the database.
 """
 from typing import Dict, Any, Type
 from sqlmodel import SQLModel, Field, create_engine, Session
-from rankyswanky.models.caching_models import Document
+from rankyswanky.adapters.persistence.caching_models import Document
 import pathlib
 
 def clear_database(db_path: str = "documents.db") -> None:

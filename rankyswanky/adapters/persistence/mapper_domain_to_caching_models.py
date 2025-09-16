@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
-from rankyswanky.models.caching_models import (
+from rankyswanky.adapters.persistence.caching_models import (
 	Document as PersistedDocument,
 	Query as PersistedQuery,
 	RelevanceScore as PersistedRelevanceScore,
