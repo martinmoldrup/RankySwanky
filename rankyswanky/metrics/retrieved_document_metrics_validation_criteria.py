@@ -7,7 +7,7 @@ The purpose is to make questions specific such that implicit needs for the user 
 import os
 import re
 from pydantic import BaseModel, Field
-from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_core.language_models import BaseChatModel
 import json
 from genson import SchemaBuilder
 from typing import Any, Dict
@@ -62,24 +62,11 @@ class EvaluatedValidationCriterias(BaseModel):
         return f"Validation Criteria Met: {met}/{total}"
 
 
-AZURE_ENDPOINT: str = "https://gf-oai-gwcml-s-swno.openai.azure.com/"
-AZURE_OPENAI_API_KEY: str = os.getenv("OPENAI_KEY")
-AZURE_OPENAI_API_VERSION: str = "2024-10-21"
-AZURE_DEPLOYMENT_EMBEDDINGS: str = "text-embedding-ada-002"
-
-
-open_chat_llm = AzureChatOpenAI(
-    azure_endpoint=AZURE_ENDPOINT,
-    api_key=AZURE_OPENAI_API_KEY,
-    azure_deployment="gpt-4.1",
-    api_version=AZURE_OPENAI_API_VERSION,
-)
-
 
 def _generate_perspective_rewritten_questions(
     question: str,
     perspective: str,
-    llm: AzureChatOpenAI = open_chat_llm,
+    llm: BaseChatModel,
 ) -> RewrittenQuestions:
     """Get rewritten questions from the LLM based on the original question and perspective."""
     prompt: str = (
@@ -101,7 +88,7 @@ def _generate_perspective_rewritten_questions(
 def _generate_validation_criterias(
     question: str,
     rewritten_questions: list[str],
-    llm: AzureChatOpenAI = open_chat_llm,
+    llm: BaseChatModel,
 ) -> PropertiesOfCorrectAnswerStructuredOutput:
     """Get properties of a correct answer from the LLM using the original and rewritten questions for inspiration."""
     # prompt1: str = (
@@ -167,7 +154,7 @@ def _evaluate_document_properties(
     question: str,
     properties: list[str],
     document: str,
-    llm: AzureChatOpenAI = open_chat_llm,
+    llm: BaseChatModel,
 ) -> EvaluatedValidationCriterias:
     """Generate the booleans for the validation properties based on the document."""
     property_sanitized_lookup: Dict[str, str] = {
@@ -192,7 +179,8 @@ def _evaluate_document_properties(
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
-    def __init__(self) -> None:
+    def __init__(self, llm: BaseChatModel) -> None:
+        self._llm = llm
         self.reset()
 
     def reset(self) -> None:
@@ -203,7 +191,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
     def set_question(self, question: str) -> None:
         self.reset()
         self._question = question
-        self._extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite())
+        self._extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite(), self._llm)
         self._validation_criterias_met_history = {validation_criteria: False for validation_criteria in self._validation_criteria.properties_of_a_good_document_containing_all_perspectives}
 
 
@@ -211,7 +199,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         self,
         question: str,
         perspective: str,
-        llm: AzureChatOpenAI = open_chat_llm,
+        llm: BaseChatModel,
     ) -> None:
         """
         Get combined output of rewritten questions and properties of a correct answer.
@@ -234,7 +222,8 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         evaluated_criteria = _evaluate_document_properties(
             question=self._question,
             properties=self._validation_criteria.properties_of_a_good_document_containing_all_perspectives,
-            document=context
+            document=context,
+            llm=self._llm,
         )
         relevance = evaluated_criteria.count_validation_criterias_met() / len(evaluated_criteria)
         novelty = self._calculate_novelty(evaluated_criteria)
@@ -286,8 +275,11 @@ class RelevanceEvaluatorWithPersistance(RelevanceEvaluator):
         persistence_obj = mapper_domain_to_caching_models.map_combined_output_to_gen_and_evaluate_params(self._validation_criteria)
         pydantic_caching.save_sqlmodels_to_db([persistence_obj])
 
-    def _extract_validation_criterias(self, question, perspective, llm = open_chat_llm):
-        # TODO: Figure out how to move the caching logic and all persistance function to a seperate module (seperation of concerns)
+    def _extract_validation_criterias(self, question: str, perspective: str, llm: BaseChatModel) -> None:
+        """
+        Get combined output of rewritten questions and properties of a correct answer.
+        """
+        # TODO: Figure out how to move the caching logic and all persistance function to a separate module (separation of concerns)
         persisted_model = self._load_cache(question=question, perspective=perspective)
         if persisted_model:
             self._validation_criteria = CombinedOutput(
@@ -302,11 +294,12 @@ class RelevanceEvaluatorWithPersistance(RelevanceEvaluator):
 
 
 if __name__ == "__main__":
+    from rankyswanky.adapters import llm
     def main(questions: list[str], documents: list[str]) -> None:
         """Main function to run the script using RelevanceEvaluator."""
         for question in questions:
             for perspective in perspectives:
-                evaluator = RelevanceEvaluator()
+                evaluator = RelevanceEvaluator(llm=llm.open_chat_llm)
                 evaluator.set_question(question)
                 print(f"Original Question: {question}")
                 print("Rewritten Questions:")

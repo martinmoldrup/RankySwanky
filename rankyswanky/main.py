@@ -2,6 +2,8 @@
 
 import asyncio
 from typing import Callable, List, Dict
+
+from langchain_core.language_models import BaseChatModel
 from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     SearchEvaluationRunCollection,
@@ -15,14 +17,15 @@ from rankyswanky.builders.search_evaluation_run_director import (
 )
 from rankyswanky.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluatorWithPersistance as RelevanceEvaluator
-
+from rankyswanky.adapters import llm
 
 class RankySwanky:
     """Wraps search engines or retrievers and provides evaluation methods."""
 
-    def __init__(self, retriever: Callable[[str], List[str]] | None = None) -> None:
+    def __init__(self, retriever: Callable[[str], List[str]] | None = None, chat_llm: BaseChatModel = llm.chat_llm) -> None:
         """Initializes RankySwanky with optional single retriever."""
         self.engines: Dict[str, Callable[[str], List[str]]] = {}
+        self._chat_llm = chat_llm
         if retriever is not None:
             self.engines["default"] = retriever
 
@@ -46,7 +49,7 @@ class RankySwanky:
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
-        relevance_evaluator = RelevanceEvaluator()
+        relevance_evaluator = RelevanceEvaluator(llm=self._chat_llm)
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder, query_results_builder, relevance_evaluator
         )

@@ -1,14 +1,11 @@
-from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_core.language_models import BaseChatModel
 import os
 import pydantic
 from rankyswanky.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
+from rankyswanky.adapters import llm
 
-AZURE_ENDPOINT: str = "https://gf-oai-gwcml-s-swno.openai.azure.com/"
-AZURE_OPENAI_API_KEY: str = os.getenv("OPENAI_KEY")
-AZURE_OPENAI_API_VERSION: str = "2024-10-21"
-AZURE_DEPLOYMENT_EMBEDDINGS: str = "text-embedding-ada-002"
 SYSTEM_PROMPT: str = """
 You are an expert evaluator of search results with a deep understanding of many various topics.
 You should rank the relevance by giving star ratings from 1 to 5, where 1 is not relevant at all and 5 is highly relevant.
@@ -38,21 +35,8 @@ class EvaluationResult(pydantic.BaseModel):
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     def __init__(self) -> None:
-        self._embeddings_client = AzureOpenAIEmbeddings(
-            azure_deployment=AZURE_DEPLOYMENT_EMBEDDINGS,
-            azure_endpoint=AZURE_ENDPOINT,
-            api_key=AZURE_OPENAI_API_KEY,
-            api_version=AZURE_OPENAI_API_VERSION,
-            max_retries=10,
-            timeout=60,
-        )
-
-        self._open_chat_llm = AzureChatOpenAI(
-            azure_endpoint=AZURE_ENDPOINT,
-            api_key=AZURE_OPENAI_API_KEY,
-            azure_deployment="gpt-4o",
-            api_version=AZURE_OPENAI_API_VERSION,
-        )
+        self._open_chat_llm: BaseChatModel = llm.chat_llm
+        # self._embeddings_llm: AzureOpenAIEmbeddings = llm.embeddings_llm
         self._question: str = ""
 
     def set_question(self, question: str) -> None:

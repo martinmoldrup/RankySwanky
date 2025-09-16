@@ -9,8 +9,8 @@ from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     TestConfiguration,
 )
-from rankyswanky.utils.retrieved_document_metrics import RelevanceEvaluatorBase, RelevanceEvaluator
-from rankyswanky.utils.aggregated_metrics import calculate_aggregated_retrieval_metrics
+from rankyswanky.metrics.retrieved_document_metrics import RelevanceEvaluatorBase, RelevanceEvaluator
+from rankyswanky.metrics.aggregated_metrics import calculate_aggregated_retrieval_metrics
 import time
 
 
