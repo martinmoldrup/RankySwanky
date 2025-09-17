@@ -16,8 +16,9 @@ from rankyswanky.application.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
 from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
-from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluatorWithPersistance as RelevanceEvaluator
+from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
 from rankyswanky.adapters import llm
+from rankyswanky.adapters.persistence.repositories_sqllite import QuestionWithRewritesAndCorrectnessPropsRepositorySQLite
 
 class RankySwanky:
     """Wraps search engines or retrievers and provides evaluation methods."""
@@ -49,7 +50,8 @@ class RankySwanky:
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
-        relevance_evaluator = RelevanceEvaluator(llm=self._chat_llm)
+        caching_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
+        relevance_evaluator = RelevanceEvaluator(llm=self._chat_llm, caching_repo=caching_repo)
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder, query_results_builder, relevance_evaluator
         )

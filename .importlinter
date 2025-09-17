@@ -20,6 +20,16 @@ containers=
     rankyswanky
 exhaustive = true
 
+[importlinter:contract:application-layers]
+name = Application layers contract
+type = layers
+layers =
+    builders
+    metrics
+containers=
+    rankyswanky.application
+exhaustive = true
+
 # [importlinter:contract:repositories-contract]
 # name = Repositories Layered Contract
 # type = layers

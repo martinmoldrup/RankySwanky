@@ -4,44 +4,32 @@ Script for finding what different requirements is for answering a question based
 The rewritten questions will be used to determine what a good answer would be for different roles.
 The purpose is to make questions specific such that implicit needs for the user of what the want by the question is met.
 """
-import os
 import re
 from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseChatModel
-import json
 from genson import SchemaBuilder
 from typing import Any, Dict
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
+from rankyswanky.models.metric_calculation_models import QuestionWithRewrites, QuestionWithRewritesAndCorrectnessProps
 
-
-from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import Perspective, perspectives
-from rankyswanky.adapters.persistence.caching_models import GenAndEvaluateQuestionParameters
+from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import perspectives
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
-from rankyswanky.adapters.persistence import mapper_domain_to_caching_models, pydantic_caching
+from rankyswanky.models.repositories import QuestionWithRewritesAndCorrectnessPropsRepository
 
 class RewrittenAnswersStructuredOutput(BaseModel):
+    """Output class to be used for LLM structured output."""
     rewritten_questions: list[str] = Field(
         default_factory=list,
         description="List of rewritten questions based on the original question and perspective."
     )
 
-class RewrittenQuestions(RewrittenAnswersStructuredOutput):
-    """Model to hold rewritten questions."""
-    question: str = Field(..., description="The original question.")
-    perspective: str = Field(
-        ..., description="The perspective from which the question is asked."
-    )
-
 class PropertiesOfCorrectAnswerStructuredOutput(BaseModel):
-    """Model to hold properties of a correct answer."""
+    """Output class to be used for LLM structured output."""
     properties_of_a_good_document_containing_all_perspectives: list[str] = Field(
         default_factory=list,
         description="List of properties that a correct answer should have."
     )
 
-class CombinedOutput(RewrittenQuestions, PropertiesOfCorrectAnswerStructuredOutput):
-    """Final model combining rewritten questions and properties of a correct answer."""
-    pass
 
 class EvaluatedValidationCriterias(BaseModel):
     """Model to hold evaluated validation criteria."""
@@ -67,7 +55,7 @@ def _generate_perspective_rewritten_questions(
     question: str,
     perspective: str,
     llm: BaseChatModel,
-) -> RewrittenQuestions:
+) -> QuestionWithRewrites:
     """Get rewritten questions from the LLM based on the original question and perspective."""
     prompt: str = (
         f"Rewrite the following question to be specific and actionable for the given perspective.\n"
@@ -79,7 +67,7 @@ def _generate_perspective_rewritten_questions(
         RewrittenAnswersStructuredOutput,
     ).invoke(prompt)
     assert isinstance(response, RewrittenAnswersStructuredOutput)
-    return RewrittenQuestions(
+    return QuestionWithRewrites(
         question=question,
         perspective=perspective,
         rewritten_questions=response.rewritten_questions,
@@ -179,28 +167,40 @@ def _evaluate_document_properties(
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
-    def __init__(self, llm: BaseChatModel) -> None:
+    def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository) -> None:
         self._llm = llm
+        self._caching_repo = caching_repo
         self.reset()
 
     def reset(self) -> None:
         self._question = ""
-        self._validation_criteria: CombinedOutput | None = None
+        self._validation_criteria: QuestionWithRewritesAndCorrectnessProps | None = None
         self._validation_criterias_met_history: Dict[str, bool] = {}
 
     def set_question(self, question: str) -> None:
         self.reset()
         self._question = question
-        self._extract_validation_criterias(question, perspectives[0].to_repr_relevant_to_rewrite(), self._llm)
+        self._validation_criteria = self._get_validation_criteria_with_caching(
+            question=question,
+            perspective=perspectives[0].to_repr_relevant_to_rewrite(),
+        )
         self._validation_criterias_met_history = {validation_criteria: False for validation_criteria in self._validation_criteria.properties_of_a_good_document_containing_all_perspectives}
 
+    def _get_validation_criteria_with_caching(self, question: str, perspective: str) -> QuestionWithRewritesAndCorrectnessProps:
+        """Get validation criteria, using caching to avoid redundant LLM calls."""
+        cached = self._caching_repo.get_by_question_and_perspective(question, perspective)
+        if cached:
+            return cached
+        new_criteria = self._extract_validation_criterias(question, perspective, self._llm)
+        self._caching_repo.save(new_criteria)
+        return new_criteria
 
     def _extract_validation_criterias(
         self,
         question: str,
         perspective: str,
         llm: BaseChatModel,
-    ) -> None:
+    ) -> QuestionWithRewritesAndCorrectnessProps:
         """
         Get combined output of rewritten questions and properties of a correct answer.
         """
@@ -208,7 +208,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         properties = _generate_validation_criterias(
             question, rewritten_questions.rewritten_questions, llm
         )
-        self._validation_criteria = CombinedOutput(
+        return QuestionWithRewritesAndCorrectnessProps(
             question=rewritten_questions.question,
             perspective=rewritten_questions.perspective,
             rewritten_questions=rewritten_questions.rewritten_questions,
@@ -255,77 +255,39 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             if met:
                 self._validation_criterias_met_history[prop] = True
 
+# if __name__ == "__main__":
+#     from rankyswanky.adapters import llm
+#     def main(questions: list[str], documents: list[str]) -> None:
+#         """Main function to run the script using RelevanceEvaluator."""
+#         for question in questions:
+#             for perspective in perspectives:
+#                 evaluator = RelevanceEvaluator(llm=llm.chat_llm)
+#                 evaluator.set_question(question)
+#                 print(f"Original Question: {question}")
+#                 print("Rewritten Questions:")
+#                 for rq in evaluator._validation_criteria.rewritten_questions:
+#                     print(f"- {rq}")
+#                 print("Properties of a Good Document:")
+#                 for prop in evaluator._validation_criteria.properties_of_a_good_document_containing_all_perspectives:
+#                     print(f"- {prop}")
+#                 print("\n" + "="*50 + "\n")
+#                 for document in documents:
+#                     metrics = evaluator.create_retrieved_document_metrics(document)
+#                     if metrics is not None:
+#                         print(f"Evaluation for Document:\n{document}\nResult: {metrics}\n")
+#                         print(f"Relevance: {metrics.relevance:.2f}, Novelty: {metrics.novelty:.2f}")
+#                     else:
+#                         print("Could not evaluate document metrics.")
+#                     print("\n" + "="*50 + "\n")
 
-class RelevanceEvaluatorWithPersistance(RelevanceEvaluator):
-    def _load_cache(self, question: str, perspective: str) -> CombinedOutput | None:
-        persisted_model = pydantic_caching.get_sqlmodel_by_primary_key(
-            model=GenAndEvaluateQuestionParameters,
-            primary_key_value=mapper_domain_to_caching_models.default_gen_eval_id_strategy(query_id=mapper_domain_to_caching_models.default_query_id_strategy(question),perspective_id=mapper_domain_to_caching_models.default_perspective_id_strategy(perspectives[0].to_repr_relevant_to_rewrite()))
-        )
-        if not persisted_model:
-            return None
-        return CombinedOutput(
-            question=question,
-            perspective="",
-            rewritten_questions=persisted_model.rewritten_questions,
-            properties_of_a_good_document_containing_all_perspectives=persisted_model.properties_of_a_good_document_containing_all_perspectives,
-        )
-
-    def _save_cache(self, question: str, perspective: str, model: CombinedOutput) -> None:
-        persistence_obj = mapper_domain_to_caching_models.map_combined_output_to_gen_and_evaluate_params(self._validation_criteria)
-        pydantic_caching.save_sqlmodels_to_db([persistence_obj])
-
-    def _extract_validation_criterias(self, question: str, perspective: str, llm: BaseChatModel) -> None:
-        """
-        Get combined output of rewritten questions and properties of a correct answer.
-        """
-        # TODO: Figure out how to move the caching logic and all persistance function to a separate module (separation of concerns)
-        persisted_model = self._load_cache(question=question, perspective=perspective)
-        if persisted_model:
-            self._validation_criteria = CombinedOutput(
-                question=question,
-                perspective="",
-                rewritten_questions=persisted_model.rewritten_questions,
-                properties_of_a_good_document_containing_all_perspectives=persisted_model.properties_of_a_good_document_containing_all_perspectives,
-            )
-        else:
-            super()._extract_validation_criterias(question, perspective, llm)
-            self._save_cache(question=question, perspective=perspective, model=self._validation_criteria)
-
-
-if __name__ == "__main__":
-    from rankyswanky.adapters import llm
-    def main(questions: list[str], documents: list[str]) -> None:
-        """Main function to run the script using RelevanceEvaluator."""
-        for question in questions:
-            for perspective in perspectives:
-                evaluator = RelevanceEvaluator(llm=llm.open_chat_llm)
-                evaluator.set_question(question)
-                print(f"Original Question: {question}")
-                print("Rewritten Questions:")
-                for rq in evaluator._validation_criteria.rewritten_questions:
-                    print(f"- {rq}")
-                print("Properties of a Good Document:")
-                for prop in evaluator._validation_criteria.properties_of_a_good_document_containing_all_perspectives:
-                    print(f"- {prop}")
-                print("\n" + "="*50 + "\n")
-                for document in documents:
-                    metrics = evaluator.create_retrieved_document_metrics(document)
-                    if metrics is not None:
-                        print(f"Evaluation for Document:\n{document}\nResult: {metrics}\n")
-                        print(f"Relevance: {metrics.relevance:.2f}, Novelty: {metrics.novelty:.2f}")
-                    else:
-                        print("Could not evaluate document metrics.")
-                    print("\n" + "="*50 + "\n")
-
-    questions = [
-        "what is an E-pump?",
-        "What is the advantages of IE5 motors?",
-        "Help me explain the TPE product range to my customer.",
-    ]
-    documents = [
-        "---\nSource title: CRE, CRIE, CRNE (Data booklet)\nBreadcrumbs: CRE, CRIE, CRNE\n---\n\n## Components of a Grundfos E-pump\n\nAn E-pump is not just a pump, but a system which is able to solve application problems or save energy in a variety of pump installations. All that is required is the power supply connection and the fitting of the E-pump in the pipe system, and the pump is ready for operation. The pump has been tested and pre-configured from the factory. The operator only has to specify the desired setpoint (pressure) and the system is operational.\n\nTM030431\n\n",
-        "---\nSource title: CRE, CRIE, CRNE (Data booklet)\nBreadcrumbs: Control of E-pumps\n---\n\n## Control options\n\nIt is possible to communicate with E-pumps via the following platforms:\n\n* the operating panel on the pump\n* Grundfos GO\n* Grundfos GO Link\n* the central management system.\nThe purpose of controlling an E-pump is to monitor and control the pressure, temperature, flow rate and liquid level of the system.\n\n",
-        "---\nSource title: CME, CM (Data booklet)\nBreadcrumbs: The pump uses the input from the sensor to control the differential temperature.\n  / Constant flow rate / Constant flow rate / Control of E-pumps\n---\n\n##### Control options\n\nIt is possible to communicate with E-pumps via the following platforms:\n\n* the operating panel on the pump\n* Grundfos GO\n* Grundfos GO Link\n* the central management system.\nThe purpose of controlling an E-pump is to monitor and control the pressure, temperature, flow rate and liquid level of the system.\n\n",
-    ]
-    main(questions, documents)
+#     questions = [
+#         "what is an E-pump?",
+#         "What is the advantages of IE5 motors?",
+#         "Help me explain the TPE product range to my customer.",
+#     ]
+#     documents = [
+#         "---\nSource title: CRE, CRIE, CRNE (Data booklet)\nBreadcrumbs: CRE, CRIE, CRNE\n---\n\n## Components of a Grundfos E-pump\n\nAn E-pump is not just a pump, but a system which is able to solve application problems or save energy in a variety of pump installations. All that is required is the power supply connection and the fitting of the E-pump in the pipe system, and the pump is ready for operation. The pump has been tested and pre-configured from the factory. The operator only has to specify the desired setpoint (pressure) and the system is operational.\n\nTM030431\n\n",
+#         "---\nSource title: CRE, CRIE, CRNE (Data booklet)\nBreadcrumbs: Control of E-pumps\n---\n\n## Control options\n\nIt is possible to communicate with E-pumps via the following platforms:\n\n* the operating panel on the pump\n* Grundfos GO\n* Grundfos GO Link\n* the central management system.\nThe purpose of controlling an E-pump is to monitor and control the pressure, temperature, flow rate and liquid level of the system.\n\n",
+#         "---\nSource title: CME, CM (Data booklet)\nBreadcrumbs: The pump uses the input from the sensor to control the differential temperature.\n  / Constant flow rate / Constant flow rate / Control of E-pumps\n---\n\n##### Control options\n\nIt is possible to communicate with E-pumps via the following platforms:\n\n* the operating panel on the pump\n* Grundfos GO\n* Grundfos GO Link\n* the central management system.\nThe purpose of controlling an E-pump is to monitor and control the pressure, temperature, flow rate and liquid level of the system.\n\n",
+#     ]
+#     main(questions, documents)

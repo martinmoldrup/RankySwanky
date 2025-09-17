@@ -1,10 +1,8 @@
 from langchain_core.language_models import BaseChatModel
-import os
 import pydantic
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
-from rankyswanky.adapters import llm
 
 SYSTEM_PROMPT: str = """
 You are an expert evaluator of search results with a deep understanding of many various topics.
@@ -34,8 +32,8 @@ class EvaluationResult(pydantic.BaseModel):
 
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
-    def __init__(self) -> None:
-        self._open_chat_llm: BaseChatModel = llm.chat_llm
+    def __init__(self, chat_llm: BaseChatModel) -> None:
+        self._chat_llm: BaseChatModel = chat_llm
         # self._embeddings_llm: AzureOpenAIEmbeddings = llm.embeddings_llm
         self._question: str = ""
 
@@ -45,7 +43,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
 
     def get_relevance_score(self, context: str) -> int:
         """Get the relevance score of the context to the question using an LLM."""
-        evaluation_result: EvaluationResult = self._open_chat_llm.with_structured_output(EvaluationResult).invoke(
+        evaluation_result: EvaluationResult = self._chat_llm.with_structured_output(EvaluationResult).invoke(
             SYSTEM_PROMPT.format(question=self._question, context=context),
         )
         return evaluation_result.relevance_score_1_to_5
