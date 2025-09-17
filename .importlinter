@@ -1,6 +1,7 @@
 [importlinter]
 root_packages=
     rankyswanky
+    experimentation
 
 
 [importlinter:contract:layers]
@@ -29,6 +30,15 @@ layers =
 containers=
     rankyswanky.application
 exhaustive = true
+
+[importlinter:contract:no-experimentation-in-rankyswanky]
+name = Experimentation cannot be imported in rankyswanky
+type = forbidden
+source_modules =
+    rankyswanky
+forbidden_modules =
+    experimentation
+
 
 # [importlinter:contract:repositories-contract]
 # name = Repositories Layered Contract

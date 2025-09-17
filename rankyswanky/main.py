@@ -18,15 +18,24 @@ from rankyswanky.application.builders.search_evaluation_run_director import (
 from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
 from rankyswanky.adapters import llm
-from rankyswanky.adapters.persistence.repositories_sqllite import QuestionWithRewritesAndCorrectnessPropsRepositorySQLite
+from rankyswanky.adapters.persistence.repositories_sqllite import (
+    QuestionWithRewritesAndCorrectnessPropsRepositorySQLite,
+)
+
 
 class RankySwanky:
     """Wraps search engines or retrievers and provides evaluation methods."""
 
-    def __init__(self, retriever: Callable[[str], List[str]] | None = None, chat_llm: BaseChatModel = llm.chat_llm) -> None:
+    def __init__(
+        self,
+        retriever: Callable[[str], List[str]] | None = None,
+        chat_llm: BaseChatModel = llm.chat_llm,
+        perspective: str = "You are a person seeking to understand all sides of an issue thoroughly.",
+    ) -> None:
         """Initializes RankySwanky with optional single retriever."""
         self.engines: Dict[str, Callable[[str], List[str]]] = {}
         self._chat_llm = chat_llm
+        self._perspective = perspective
         if retriever is not None:
             self.engines["default"] = retriever
 
@@ -51,9 +60,15 @@ class RankySwanky:
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
         caching_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
-        relevance_evaluator = RelevanceEvaluator(llm=self._chat_llm, caching_repo=caching_repo)
+        relevance_evaluator = RelevanceEvaluator(
+            llm=self._chat_llm,
+            caching_repo=caching_repo,
+            perspective=self._perspective,
+        )
         search_evaluation_director = SearchEvaluationRunDirector(
-            search_evaluation_builder, query_results_builder, relevance_evaluator
+            search_evaluation_builder,
+            query_results_builder,
+            relevance_evaluator,
         )
         search_evaluation_run = search_evaluation_director.construct(
             queries=queries,

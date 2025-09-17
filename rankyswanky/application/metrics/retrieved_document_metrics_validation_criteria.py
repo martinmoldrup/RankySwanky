@@ -12,7 +12,6 @@ from typing import Any, Dict
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 from rankyswanky.models.metric_calculation_models import QuestionWithRewrites, QuestionWithRewritesAndCorrectnessProps
 
-from experimentation.calc_gain_gen_and_eval_question_parameters.grundfos_perspective import perspectives
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 from rankyswanky.models.repositories import QuestionWithRewritesAndCorrectnessPropsRepository
 
@@ -167,9 +166,10 @@ def _evaluate_document_properties(
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
-    def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository) -> None:
+    def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository, perspective: str) -> None:
         self._llm = llm
         self._caching_repo = caching_repo
+        self._perspective = perspective
         self.reset()
 
     def reset(self) -> None:
@@ -182,7 +182,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         self._question = question
         self._validation_criteria = self._get_validation_criteria_with_caching(
             question=question,
-            perspective=perspectives[0].to_repr_relevant_to_rewrite(),
+            perspective=self._perspective,
         )
         self._validation_criterias_met_history = {validation_criteria: False for validation_criteria in self._validation_criteria.properties_of_a_good_document_containing_all_perspectives}
 
