@@ -1,20 +1,19 @@
 """
 Calculate metrics for evaluating retrieval systems and ranking search results.
 """
-# TODO: Go though and check which values is computed based on other values and move the logic to the domain model.
-# TODO: Model distilation - simplify and remove non essential parts.
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, Field, computed_field
-import rich
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from rich.text import Text
+from rich.table import Table
 
 RELEVANCE_THRESHOLD = 0.5
-
-class TestConfiguration(BaseModel):
+# TODO: Go though and check which values is computed based on other values and move the logic to the domain model.
+# TODO: Model distilation - simplify and remove non essential parts.
+@dataclass
+class TestConfiguration:
     """Test configuration."""
 
     embedding_model: str = "text-embedding-3-large"
@@ -24,7 +23,8 @@ class TestConfiguration(BaseModel):
     """The distance function to use."""
 
 
-class RetrievalMetricsAtK(BaseModel):
+@dataclass
+class RetrievalMetricsAtK:
     """Metrics for evaluating retrieval systems at a specific rank k."""
 
     precision: float
@@ -53,9 +53,9 @@ class RetrievalMetricsAtK(BaseModel):
     Alternatively have a number N (N > k) of retrieved documents, and sort the N results when calculating INCG for k
     """
 
-class AggregatedRetrievalMetrics(BaseModel):
+@dataclass
+class AggregatedRetrievalMetrics:
     """Aggregated metrics for evaluating retrieval systems."""
-
 
     mean_relevance: float
     """Relevance of the retrieved documents."""
@@ -66,7 +66,8 @@ class AggregatedRetrievalMetrics(BaseModel):
     mean_reciprocal_rank: float
     """Mean Reciprocal Rank (MRR) for the retrieved documents."""
 
-    metrics_at_k: dict[int, RetrievalMetricsAtK ] = Field(default_factory=dict)
+    metrics_at_k: dict[int, RetrievalMetricsAtK] = field(default_factory=dict)
+    """Metrics at specific ranks k."""
 
     def as_dict(self) -> dict[str, float]:
         """Convert the metrics to a dictionary for easy printing, including metrics at k."""
@@ -91,9 +92,8 @@ class GainCalculationMethod(Enum):
     RELEVANCE_ONLY = "relevance_only"
     RELEVANCE_AND_NOVELTY = "relevance_and_novelty"
 
-
-
-class RetrievedDocumentMetrics(BaseModel):
+@dataclass
+class RetrievedDocumentMetrics:
     """Metrics for a single retrieved document."""
 
     relevance: float
@@ -107,7 +107,6 @@ class RetrievedDocumentMetrics(BaseModel):
     is satisfied for the first time, compared with higher ranked documents.
     """
 
-    @computed_field
     @property
     def is_relevant(self) -> bool:
         """Return True if the document is relevant."""
@@ -126,8 +125,8 @@ class RetrievedDocumentMetrics(BaseModel):
         else:
             raise ValueError(f"Unknown method: {method}")
 
-
-class PerQueryRetrievalMetrics(BaseModel):
+@dataclass
+class PerQueryRetrievalMetrics:
     """Metrics for evaluating the retrieval of documents for a query."""
     mean_relevance: float
     """Mean relevance of the retrieved documents."""
@@ -138,7 +137,8 @@ class PerQueryRetrievalMetrics(BaseModel):
     reciprocal_rank_of_first_relevant_document: float
     """Reciprocal Rank (RR) of the first relevant document."""
 
-class RetrievedDocument(BaseModel):
+@dataclass
+class RetrievedDocument:
     """A single retrieved document with ranking and metrics."""
 
     document_content: str
@@ -147,31 +147,30 @@ class RetrievedDocument(BaseModel):
     rank: int
     """The rank of the retrieved document."""
 
-    embedding_vector: list[float] = Field(default_factory=list)
+    embedding_vector: list[float] = field(default_factory=list)
     """The vector embeddings of the retrieved document."""
 
-    retrieved_document_metrics: Optional[RetrievedDocumentMetrics] = None
+    retrieved_document_metrics: RetrievedDocumentMetrics | None = None
     """Metrics for the retrieved document. This will be calculated in a separate step. Will be None if not calculated yet."""
 
-
-class QueryResults(BaseModel):
+@dataclass
+class QueryResults:
     """Results for a single query, including all retrieved documents."""
 
     query: str
     """The query that was used to retrieve the documents."""
 
-    retrieved_documents: list[RetrievedDocument] = Field(default_factory=list)
+    retrieved_documents: list[RetrievedDocument] = field(default_factory=list)
     """The retrieved documents for this query."""
 
-    query_metrics: Optional[PerQueryRetrievalMetrics] = None
+    query_metrics: PerQueryRetrievalMetrics | None = None
     """Metrics for the query retrieval. This will be calculated in a separate step. Will be None if not calculated yet."""
 
-    retrieval_time_ms: int
+    retrieval_time_ms: int = 0
     """The time it took to retrieve the documents in milliseconds."""
 
-
-
-class SearchEvaluationRun(BaseModel):
+@dataclass
+class SearchEvaluationRun:
     """Aggregate root for a single evaluation run for the retrieval system, including all queries and aggregated metrics."""
 
     engine_name: str
@@ -180,12 +179,11 @@ class SearchEvaluationRun(BaseModel):
     test_configuration: TestConfiguration
     """The test configuration."""
 
-    per_query_results: list[QueryResults] = Field(default_factory=list)
+    per_query_results: list[QueryResults] = field(default_factory=list)
     """The results for each query in this evaluation run."""
 
-    overall_retrieval_metrics: Optional[AggregatedRetrievalMetrics] = None
+    overall_retrieval_metrics: AggregatedRetrievalMetrics | None = None
     """The aggregated metrics for the retrieval system."""
-
 
     def get_mean_retrieval_time_ms(self) -> float:
         """Get the mean retrieval time in milliseconds for the evaluation run."""
@@ -230,10 +228,11 @@ class SearchEvaluationRun(BaseModel):
             documents.extend(result.retrieved_documents)
         return {doc.document_content for doc in documents}
 
-class SearchEvaluationRunCollection(BaseModel):
+@dataclass
+class SearchEvaluationRunCollection:
     """Aggregate root for a collection of SearchEvaluationRun objects, used for comparison and analysis."""
 
-    runs: list[SearchEvaluationRun] = Field(default_factory=list)
+    runs: list[SearchEvaluationRun] = field(default_factory=list)
     """List of SearchEvaluationRun instances."""
 
     def get_overlapping_retrieved_documents(self) -> set[str]:
