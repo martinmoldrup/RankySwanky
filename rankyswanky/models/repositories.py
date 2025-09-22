@@ -1,7 +1,7 @@
 """Abstract repository interfaces for persistence / caching models."""
 from abc import ABC, abstractmethod
 from typing import Optional
-from rankyswanky.models.metric_calculation_models import QuestionWithRewritesAndCorrectnessProps
+from rankyswanky.models.metric_calculation_models import QuestionWithRewritesAndCorrectnessProps, RetrievedDocumentStatistics
 
 class QuestionWithRewritesAndCorrectnessPropsRepository(ABC):
     """Repository for QuestionWithRewritesAndCorrectnessProps persistence."""
@@ -15,3 +15,17 @@ class QuestionWithRewritesAndCorrectnessPropsRepository(ABC):
     def save(self, params: QuestionWithRewritesAndCorrectnessProps) -> None:
         # ...save logic...
         pass
+    
+class DocumentRepository(ABC):
+    """Repository for Document persistence."""
+
+    @abstractmethod
+    def get_by_question_and_perspective_and_document(self, question: str, perspective: str, document_content: str) -> Optional[RetrievedDocumentStatistics]:
+        """Retrieve a document by its ID."""
+        pass
+
+    @abstractmethod
+    def save(self, question: str, perspective: str, document_content: str, params: RetrievedDocumentStatistics) -> None:
+        """Save a document with its ID and content."""
+        pass
+

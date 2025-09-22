@@ -83,7 +83,7 @@ class SearchEvaluationRunDirector:
         """Calculate per-document metrics for a given query and result content."""
         retrieved_document_metrics = (
             self._relevance_evaluator.create_retrieved_document_metrics(
-                context=search_result_content
+                document_content=search_result_content
             )
         )
         return retrieved_document_metrics

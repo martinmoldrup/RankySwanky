@@ -19,7 +19,7 @@ from rankyswanky.application.builders.query_results_builder import QueryResultsB
 from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
 from rankyswanky.adapters import llm
 from rankyswanky.adapters.persistence.repositories_sqllite import (
-    QuestionWithRewritesAndCorrectnessPropsRepositorySQLite,
+    QuestionWithRewritesAndCorrectnessPropsRepositorySQLite, DocumentRepositorySQLite
 )
 
 
@@ -60,10 +60,12 @@ class RankySwanky:
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
         caching_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
+        document_repo = DocumentRepositorySQLite()
         relevance_evaluator = RelevanceEvaluator(
             llm=self._chat_llm,
             caching_repo=caching_repo,
             perspective=self._perspective,
+            document_repo=document_repo,
         )
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder,

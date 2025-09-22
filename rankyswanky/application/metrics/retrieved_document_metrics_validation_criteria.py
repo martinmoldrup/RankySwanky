@@ -10,10 +10,10 @@ from langchain_core.language_models import BaseChatModel
 from genson import SchemaBuilder
 from typing import Any, Dict
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
-from rankyswanky.models.metric_calculation_models import QuestionWithRewrites, QuestionWithRewritesAndCorrectnessProps
+from rankyswanky.models.metric_calculation_models import QuestionWithRewrites, QuestionWithRewritesAndCorrectnessProps, RetrievedDocumentStatistics
 
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
-from rankyswanky.models.repositories import QuestionWithRewritesAndCorrectnessPropsRepository
+from rankyswanky.models.repositories import QuestionWithRewritesAndCorrectnessPropsRepository, DocumentRepository
 
 class RewrittenAnswersStructuredOutput(BaseModel):
     """Output class to be used for LLM structured output."""
@@ -166,9 +166,10 @@ def _evaluate_document_properties(
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
-    def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository, perspective: str) -> None:
+    def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository, perspective: str, document_repo: DocumentRepository) -> None:
         self._llm = llm
         self._caching_repo = caching_repo
+        self._document_repo = document_repo
         self._perspective = perspective
         self.reset()
 
@@ -214,23 +215,44 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             rewritten_questions=rewritten_questions.rewritten_questions,
             properties_of_a_good_document_containing_all_perspectives=properties.properties_of_a_good_document_containing_all_perspectives,
         )
-
-    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
+    
+    def _calculate_document_statistics_and_relevance(self, document_content: str) -> RetrievedDocumentStatistics:
         """Calculates the relevance score of a document based on the question."""
         if not self._validation_criteria:
-            return None
+            raise ValueError("Validation criteria not set. Call set_question() first.")
+        cached = self._document_repo.get_by_question_and_perspective_and_document(
+            question=self._question,
+            perspective=self._perspective,
+            document_content=document_content,
+        )
+        if cached:
+            return cached
         evaluated_criteria = _evaluate_document_properties(
             question=self._question,
             properties=self._validation_criteria.properties_of_a_good_document_containing_all_perspectives,
-            document=context,
+            document=document_content,
             llm=self._llm,
         )
         relevance = evaluated_criteria.count_validation_criterias_met() / len(evaluated_criteria)
-        novelty = self._calculate_novelty(evaluated_criteria)
-        self._update_validation_criterias_met_history(evaluated_criteria)
-        return RetrievedDocumentMetrics(relevance=relevance, novelty=novelty if novelty is not None else 0.0,)
+        retrieved_document_stats = RetrievedDocumentStatistics(relevance=relevance, evaluated_properties_of_a_good_document=evaluated_criteria.evaluation)
+        self._document_repo.save(
+            question=self._question,
+            perspective=self._perspective,
+            document_content=document_content,
+            params=retrieved_document_stats,
+        )
+        return retrieved_document_stats
 
-    def _calculate_novelty(self, evaluated_criteria: EvaluatedValidationCriterias) -> float | None:
+    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics | None:
+        """Calculates the relevance score of a document based on the question."""
+        if not self._validation_criteria:
+            return None
+        retrieved_document_stats = self._calculate_document_statistics_and_relevance(document_content)
+        novelty = self._calculate_novelty(retrieved_document_stats.evaluated_properties_of_a_good_document)
+        self._update_validation_criterias_met_history(retrieved_document_stats.evaluated_properties_of_a_good_document)
+        return RetrievedDocumentMetrics(relevance=retrieved_document_stats.relevance, novelty=novelty if novelty is not None else 0.0,)
+
+    def _calculate_novelty(self, evaluated_criteria: dict[str, bool]) -> float | None:
         """
         Calculates how big a percentage of the met validation criteria are met for the first time.
 
@@ -242,16 +264,16 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             return None
         count_of_met_criteria: int = 0
         newly_met_criteria_count: int = 0
-        for prop, met in evaluated_criteria.evaluation.items():
+        for prop, met in evaluated_criteria.items():
             if met:
                 count_of_met_criteria += 1
                 if not self._validation_criterias_met_history.get(prop, False):
                     newly_met_criteria_count += 1
         return newly_met_criteria_count / count_of_met_criteria if count_of_met_criteria > 0 else 0
 
-    def _update_validation_criterias_met_history(self, evaluated_criteria: EvaluatedValidationCriterias) -> None:
+    def _update_validation_criterias_met_history(self, evaluated_criteria: dict[str, bool]) -> None:
         """Updates the history of validation criterias met."""
-        for prop, met in evaluated_criteria.evaluation.items():
+        for prop, met in evaluated_criteria.items():
             if met:
                 self._validation_criterias_met_history[prop] = True
 

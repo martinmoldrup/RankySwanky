@@ -41,16 +41,16 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         """Set the question for the relevance evaluator."""
         self._question = question
 
-    def get_relevance_score(self, context: str) -> int:
+    def get_relevance_score(self, document_content: str) -> int:
         """Get the relevance score of the context to the question using an LLM."""
         evaluation_result: EvaluationResult = self._chat_llm.with_structured_output(EvaluationResult).invoke(
-            SYSTEM_PROMPT.format(question=self._question, context=context),
+            SYSTEM_PROMPT.format(question=self._question, context=document_content),
         )
         return evaluation_result.relevance_score_1_to_5
 
-    def create_retrieved_document_metrics(self, context: str) -> RetrievedDocumentMetrics | None:
+    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics | None:
         """Create retrieved document metrics from the context."""
-        relevance_score = self.get_relevance_score(context)
+        relevance_score = self.get_relevance_score(document_content)
         normalized_relevance = (relevance_score - 1) / 4 if relevance_score is not None else 0.0
         if relevance_score is not None:
             return RetrievedDocumentMetrics(

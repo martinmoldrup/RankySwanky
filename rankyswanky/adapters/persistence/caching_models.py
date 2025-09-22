@@ -114,20 +114,58 @@ class GenAndEvaluateQuestionParameters(SQLModel, table=True):
     __tablename__ = "gen_and_evaluate_question_parameters"
 
     id: str = Field(primary_key=True)
-    query_id: str = Field(foreign_key="queries.id", description="The ID of the user query/question for which the question is generated.")
-    perspective_id: str = Field(
-        ..., description="The perspective from which the question is asked."
-    )
+    """PRIMARY_KEY. A unique identifier for the parameters record."""
+
+    query_id: str = Field(foreign_key="queries.id")
+    """The ID of the original query/question."""
+
+    perspective_id: str
+    """The perspective from which the question is generated."""
+
     rewritten_questions: list[str] = Field(
         default_factory=list,
         description="List of rewritten questions based on the original question and perspective.",
-        sa_column=Column(JSON)
+        sa_column=Column(JSON),
     )
     properties_of_a_good_document_containing_all_perspectives: list[str] = Field(
         default_factory=list,
         description="List of properties that a correct answer should have.",
-        sa_column=Column(JSON)
+        sa_column=Column(JSON),
     )
+
+    timestamp: datetime = Field(default_factory=datetime.now)
+    """The timestamp when the evaluation was performed."""
+
+class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
+    """Stores the evaluation of document metrics for a specific question."""
+    __tablename__ = "document_metric_evaluated_for_question"
+
+    id: str = Field(primary_key=True)
+    """PRIMARY_KEY. A unique identifier for the evaluation record."""
+
+    document_id: str = Field(foreign_key="documents.id")
+    """FOREIGN_KEY:Document.id. The ID of the document being evaluated."""
+
+    perspective_id: str
+    """The perspective from which the document is evaluated."""
+
+    query_id: str = Field(foreign_key="queries.id")
+    """FOREIGN_KEY:Query.id. The ID of the query/question."""
+
+    relevance_score: float
+    """The relevance score of the document for the question."""
+
+    evaluated_properties_of_a_good_document: dict[str, bool] = Field(
+        default_factory=dict,
+        description="A dictionary mapping properties of a good document to boolean values indicating whether the document possesses each property.",
+        sa_column=Column(JSON),
+    )
+
+    # novelty_score: float
+    # """The novelty score of the document for the question."""
+
+    timestamp: datetime = Field(default_factory=datetime.now)
+    """The timestamp when the evaluation was performed."""
 
 
 # class RetrievalSystemRoot(SQLModel, table=True):

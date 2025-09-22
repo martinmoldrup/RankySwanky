@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from rankyswanky.adapters.persistence.caching_models import (
     Document as PersistedDocument,
+    DocumentMetricEvaluatedForQuestion,
 )
 from rankyswanky.adapters.persistence.caching_models import (
     GenAndEvaluateQuestionParameters as PersistedGenEvalParams,
@@ -32,6 +33,9 @@ from rankyswanky.models.retrieval_evaluation_models import (
     RetrievedDocument,
     RetrievedDocumentMetrics,
     SearchEvaluationRun,
+)
+from rankyswanky.models.metric_calculation_models import (
+    RetrievedDocumentStatistics,
 )
 from typing import Callable, Dict, Iterable, List, Optional, Protocol, Tuple, runtime_checkable
 
@@ -74,6 +78,11 @@ def default_perspective_id_strategy(perspective_text: str) -> str:
 def default_gen_eval_id_strategy(query_id: str, perspective_id: str) -> str:
     """Create a stable primary key for GenAndEvaluateQuestionParameters from query+perspective IDs."""
     return sha256(f"{query_id}:{perspective_id}".encode("utf-8")).hexdigest()
+
+
+def default_document_statistics_strategy(query_id: str, perspective_id: str, document_id: str) -> str:
+    """Create a stable document ID from content using SHA-256 hex digest."""
+    return sha256(f"{query_id}:{perspective_id}:{document_id}".encode("utf-8")).hexdigest()
 
 
 # -----------------------------
@@ -320,3 +329,9 @@ def map_combined_output_to_gen_and_evaluate_params(
             combined.properties_of_a_good_document_containing_all_perspectives
         ),
     )
+
+
+# -----------------------------
+# Map RetrievedDocumentStatistics to DocumentMetricEvaluatedForQuestion
+# -----------------------------
+
