@@ -1,4 +1,46 @@
+from numpy import log2
 from rankyswanky.models.retrieval_evaluation_models import AggregatedRetrievalMetrics, QueryResults, RetrievalMetricsAtK, RetrievedDocument, RetrievedDocumentMetrics, PerQueryRetrievalMetrics
+
+
+def calculate_ndcg(gains: list[float]) -> float:
+    """Calculates the normalized discounted cumulative gain (nDCG) from a list of gains."""
+    if not gains:
+        return 0.0
+    dcg = sum((2**gain - 1) / (log2(idx + 2)) for idx, gain in enumerate(gains))
+    ideal_gains = sorted(gains, reverse=True)
+    idcg = sum((2**gain - 1) / (log2(idx + 2)) for idx, gain in enumerate(ideal_gains))
+    return dcg / idcg if idcg > 0 else 0.0
+
+def calculate_normalized_cumulative_gain(gains: list[float]) -> float:
+    """Calculates the normalized cumulative gain (nCG) from a list of gains."""
+    if not gains:
+        return 0.0
+    max_value_for_gain = 1  # Gain is between 0 and 1
+    icg = max_value_for_gain * len(gains)
+    cg = sum(gains)
+
+    ncg = cg / icg if icg > 0 else 0.0
+    return ncg
+
+def calculate_metrics_at_k(documents: list[RetrievedDocument], k_value: int) -> RetrievalMetricsAtK:
+    """Calculates retrieval metrics at a specific rank k from the list of document metrics."""
+    if k_value <= 0:
+        raise ValueError("k_value must be a positive integer.")
+    top_k_documents = documents[:k_value]
+    gains = [doc.retrieved_document_metrics.calculate_gain() for doc in top_k_documents if doc.retrieved_document_metrics]
+    if not all(doc.retrieved_document_metrics for doc in top_k_documents):
+        raise ValueError("All retrieved documents in the top k must have metrics to calculate metrics at k.")
+    precision = sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant) / k_value
+    recall = sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant) / sum(1 for doc in documents if doc.retrieved_document_metrics and doc.retrieved_document_metrics.is_relevant)
+    ndcg = calculate_ndcg(gains)
+    return RetrievalMetricsAtK(
+        precision=precision,
+        recall=recall,
+        f1_score=2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0,
+        mean_average_precision=sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant) / k_value,
+        normalized_discounted_cumulative_gain=ndcg,
+        normalized_cumulative_gain=calculate_normalized_cumulative_gain(gains),
+    )
 
 def calculate_mean_relevance(metrics: list[RetrievedDocumentMetrics]) -> float:
     """Calculates the mean relevance from a list of document metrics."""
@@ -36,5 +78,7 @@ def calculate_aggregated_retrieval_metrics(query_results: list[QueryResults]) ->
         mean_relevance=calculate_mean_relevance([doc.retrieved_document_metrics for doc in retrieved_documents]),
         mean_novelty=calculate_mean_novelty([doc.retrieved_document_metrics for doc in retrieved_documents]),
         mean_reciprocal_rank=calculate_mean_reciprocal_rank(query_results),
-        metrics_at_k={}  # TODO: Implement metrics at k calculation
+        metrics_at_k={  # TODO: make k configurable
+            10: calculate_metrics_at_k(retrieved_documents, 10),
+        }
     )

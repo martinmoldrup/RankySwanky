@@ -47,9 +47,7 @@ class RetrievalMetricsAtK(BaseModel):
 
     normalized_cumulative_gain: float
     """Normalized Cumulative Gain (NCG) where the formula is tweaked to be suitable for RAG systems.
-    This is a custom not commonly used metric. 
-
-    - multiply relevance with the novelty, gain is only achieved for novel results
+    This is a custom not commonly used metric.
 
     Instead of normalizing using the INCG we use the max relevance value times k
     Alternatively have a number N (N > k) of retrieved documents, and sort the N results when calculating INCG for k
@@ -91,7 +89,7 @@ class GainCalculationMethod(Enum):
     """Configuration options for different methods for calculating gains for retrieved documents."""
 
     RELEVANCE_ONLY = "relevance_only"
-    RELEVANCE_AND_DIVERSITY = "relevance_and_diversity"
+    RELEVANCE_AND_NOVELTY = "relevance_and_novelty"
 
 
 
@@ -118,10 +116,13 @@ class RetrievedDocumentMetrics(BaseModel):
     # average_precision_at_k: dict[int, AveragePrecisionAtK] = Field(default_factory=dict)
     # """Average Precision at specific ranks k for the retrieved document."""
 
-    def calculate_gain(self, method: GainCalculationMethod) -> float:
+    def calculate_gain(self, method: GainCalculationMethod = GainCalculationMethod.RELEVANCE_ONLY) -> float:
         """Calculate the gain for the retrieved document."""
         if method == GainCalculationMethod.RELEVANCE_ONLY:
             return self.relevance
+        elif method == GainCalculationMethod.RELEVANCE_AND_NOVELTY:
+            # multiply relevance with the novelty, gain is only achieved for novel results
+            return self.relevance * self.novelty
         else:
             raise ValueError(f"Unknown method: {method}")
 
@@ -204,6 +205,8 @@ class SearchEvaluationRun(BaseModel):
         table.add_row("Distance Function", self.test_configuration.distance_function)
         table.add_row("Number of Queries", str(len(self.per_query_results)))
 
+        table.add_row("Number of Retrieved Documents", str(len(self.get_all_retrieved_documents_content())))
+
         if self.overall_retrieval_metrics:
             for key, value in self.overall_retrieval_metrics.as_dict().items():
                 table.add_row(key.replace("_", " ").title(), f"{value:.4f}")
@@ -220,17 +223,34 @@ class SearchEvaluationRun(BaseModel):
         console: Console = Console()
         console.print(self.summary())
 
+    def get_all_retrieved_documents_content(self) -> set[str]:
+        """Get all retrieved documents from all queries in the evaluation run."""
+        documents: list[RetrievedDocument] = []
+        for result in self.per_query_results:
+            documents.extend(result.retrieved_documents)
+        return {doc.document_content for doc in documents}
+
 class SearchEvaluationRunCollection(BaseModel):
     """Aggregate root for a collection of SearchEvaluationRun objects, used for comparison and analysis."""
 
     runs: list[SearchEvaluationRun] = Field(default_factory=list)
     """List of SearchEvaluationRun instances."""
 
+    def get_overlapping_retrieved_documents(self) -> set[str]:
+        """Get the set of overlapping retrieved documents across all runs."""
+        if not self.runs:
+            return set()
+        document_sets = [run.get_all_retrieved_documents_content() for run in self.runs]
+        overlapping_documents = set.intersection(*document_sets)
+        return overlapping_documents
+
     def print_summary(self) -> None:
         """Print the summary of all runs in rich format."""
         console: Console = Console()
         for run in self.runs:
             console.print(run.summary())
+        
+        console.print(f"Number of overlapping retrieved documents across all runs: {len(self.get_overlapping_retrieved_documents())}")
 
     def print_comparison(self) -> None:
         """
