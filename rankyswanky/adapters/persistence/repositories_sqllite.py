@@ -8,7 +8,6 @@ from rankyswanky.models.metric_calculation_models import (
     RetrievedDocumentStatistics,
 )
 from rankyswanky.models.repositories import DocumentRepository, QuestionWithRewritesAndCorrectnessPropsRepository
-from typing import Optional
 
 
 class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewritesAndCorrectnessPropsRepository):
@@ -21,8 +20,8 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
         self.perspective_id_strategy = mapper_domain_to_caching_models.default_perspective_id_strategy
 
     def get_by_question_and_perspective(
-        self, question: str, perspective: str
-    ) -> Optional[QuestionWithRewritesAndCorrectnessProps]:
+        self, question: str, perspective: str,
+    ) -> QuestionWithRewritesAndCorrectnessProps | None:
         """Retrieve a QuestionWithRewritesAndCorrectnessProps by question and perspective."""
         persisted_model = pydantic_caching.get_sqlmodel_by_primary_key(
             model=GenAndEvaluateQuestionParameters,
@@ -72,7 +71,7 @@ class DocumentRepositorySQLite(DocumentRepository):
         question: str,
         perspective: str,
         document_content: str,
-    ) -> Optional[RetrievedDocumentStatistics]:
+    ) -> RetrievedDocumentStatistics | None:
         """Retrieve a RetrievedDocumentStatistics by question, perspective, and document content."""
         primary_key_value = self.document_statistics_strategy(
             query_id=self.query_id_strategy(question),

@@ -1,7 +1,6 @@
-from langchain_core.language_models import BaseChatModel
 import pydantic
+from langchain_core.language_models import BaseChatModel
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
-
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 
 SYSTEM_PROMPT: str = """
@@ -23,12 +22,12 @@ This is the context:
 How relevant is the context to the question?
 """
 
+
 class EvaluationResult(pydantic.BaseModel):
     """Model to hold the evaluation result."""
 
     relevance_score_1_to_5: int
     """Relevance score from 1 to 5."""
-
 
 
 class RelevanceEvaluator(RelevanceEvaluatorBase):
@@ -59,6 +58,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             )
         return None
 
+
 if __name__ == "__main__":
     evaluator = RelevanceEvaluator()
     # Example usage
@@ -67,11 +67,11 @@ if __name__ == "__main__":
     evaluator.set_question(question)
     score = evaluator.get_relevance_score(context)
     print(
-        f"Relevance score for the question '{question}' with context '{context}': {score}"
+        f"Relevance score for the question '{question}' with context '{context}': {score}",
     )
 
     not_relevant_context = "The capital of Germany is Berlin."
     not_relevant_score = evaluator.get_relevance_score(question, not_relevant_context)
     print(
-        f"Relevance score for the question '{question}' with context '{not_relevant_context}': {not_relevant_score}"
+        f"Relevance score for the question '{question}' with context '{not_relevant_context}': {not_relevant_score}",
     )

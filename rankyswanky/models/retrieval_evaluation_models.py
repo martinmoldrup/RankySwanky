@@ -10,6 +10,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 RELEVANCE_THRESHOLD = 0.5
+
+
 # TODO: Go though and check which values is computed based on other values and move the logic to the domain model.
 # TODO: Model distilation - simplify and remove non essential parts.
 @dataclass
@@ -53,6 +55,7 @@ class RetrievalMetricsAtK:
     Alternatively have a number N (N > k) of retrieved documents, and sort the N results when calculating INCG for k
     """
 
+
 @dataclass
 class AggregatedRetrievalMetrics:
     """Aggregated metrics for evaluating retrieval systems."""
@@ -86,11 +89,13 @@ class AggregatedRetrievalMetrics:
             metrics[f"ncg_at_{k}"] = metric.normalized_cumulative_gain
         return metrics
 
+
 class GainCalculationMethod(Enum):
     """Configuration options for different methods for calculating gains for retrieved documents."""
 
     RELEVANCE_ONLY = "relevance_only"
     RELEVANCE_AND_NOVELTY = "relevance_and_novelty"
+
 
 @dataclass
 class RetrievedDocumentMetrics:
@@ -119,15 +124,16 @@ class RetrievedDocumentMetrics:
         """Calculate the gain for the retrieved document."""
         if method == GainCalculationMethod.RELEVANCE_ONLY:
             return self.relevance
-        elif method == GainCalculationMethod.RELEVANCE_AND_NOVELTY:
+        if method == GainCalculationMethod.RELEVANCE_AND_NOVELTY:
             # multiply relevance with the novelty, gain is only achieved for novel results
             return self.relevance * self.novelty
-        else:
-            raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Unknown method: {method}")
+
 
 @dataclass
 class PerQueryRetrievalMetrics:
     """Metrics for evaluating the retrieval of documents for a query."""
+
     mean_relevance: float
     """Mean relevance of the retrieved documents."""
 
@@ -136,6 +142,7 @@ class PerQueryRetrievalMetrics:
 
     reciprocal_rank_of_first_relevant_document: float
     """Reciprocal Rank (RR) of the first relevant document."""
+
 
 @dataclass
 class RetrievedDocument:
@@ -153,6 +160,7 @@ class RetrievedDocument:
     retrieved_document_metrics: RetrievedDocumentMetrics | None = None
     """Metrics for the retrieved document. This will be calculated in a separate step. Will be None if not calculated yet."""
 
+
 @dataclass
 class QueryResults:
     """Results for a single query, including all retrieved documents."""
@@ -168,6 +176,7 @@ class QueryResults:
 
     retrieval_time_ms: int = 0
     """The time it took to retrieve the documents in milliseconds."""
+
 
 @dataclass
 class SearchEvaluationRun:
@@ -193,7 +202,6 @@ class SearchEvaluationRun:
 
     def summary(self) -> Panel:
         """Create a rich-formatted string summarizing the evaluation run."""
-
         table: Table = Table(title=f"Search Evaluation Run Summary for {self.engine_name}")
 
         table.add_column("Test Configuration", style="cyan", no_wrap=True)
@@ -228,6 +236,7 @@ class SearchEvaluationRun:
             documents.extend(result.retrieved_documents)
         return {doc.document_content for doc in documents}
 
+
 @dataclass
 class SearchEvaluationRunCollection:
     """Aggregate root for a collection of SearchEvaluationRun objects, used for comparison and analysis."""
@@ -248,7 +257,7 @@ class SearchEvaluationRunCollection:
         console: Console = Console()
         for run in self.runs:
             console.print(run.summary())
-        
+
         console.print(f"Number of overlapping retrieved documents across all runs: {len(self.get_overlapping_retrieved_documents())}")
 
     def print_comparison(self) -> None:
@@ -257,10 +266,10 @@ class SearchEvaluationRunCollection:
         Consider using statistical significance testing to compare the results (paired t-test, Wilcoxon signed-rank test, etc.).
         """
         raise NotImplementedError(
-            "This method is not implemented yet. It should provide a rich text print of the comparison."
+            "This method is not implemented yet. It should provide a rich text print of the comparison.",
         )
+
 
 if __name__ == "__main__":
     import erdantic as erd
-    dotfile = erd.to_dot(SearchEvaluationRun)
-    erd.draw(SearchEvaluationRunCollection, out="retrieval_evaluation_models.png")
+    erd.draw(SearchEvaluationRunCollection, out="docs/retrieval_evaluation_models.png")

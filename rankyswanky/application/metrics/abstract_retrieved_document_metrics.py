@@ -6,11 +6,7 @@ class RelevanceEvaluatorBase(ABC):
     @abstractmethod
     def set_question(self, question: str) -> None:
         """Set the question for the relevance evaluator."""
-        pass
 
     @abstractmethod
     def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics | None:
         """Get the relevance score of the context to the question using an LLM."""
-        pass
-
-    

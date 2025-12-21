@@ -3,14 +3,14 @@ Store models for doing caching and persistence for the retrieval system.
 
 To ensure expensive operations like comparing documents, doing text embeddings or calculating relevance scores are not repeated unnecessarily,
 """
-from typing import Optional
-from sqlmodel import SQLModel, Field, JSON, Column
 import enum
 from datetime import datetime
+from sqlmodel import JSON, Column, Field, SQLModel
 
 
 class Document(SQLModel, table=True):
     """A single document to be used in the retrieval system."""
+
     __tablename__ = "documents"
 
     id: str = Field(primary_key=True)
@@ -36,6 +36,7 @@ class Document(SQLModel, table=True):
 
 class Query(SQLModel, table=True):
     """A single query (a search request) to be used in the retrieval system."""
+
     __tablename__ = "queries"
 
     id: str = Field(primary_key=True)
@@ -53,8 +54,10 @@ class Query(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the query was created."""
 
+
 class RelevanceScore(SQLModel, table=True):
     """A relevance score for a document in the context of a query."""
+
     __tablename__ = "relevance_scores"
     id: str = Field(primary_key=True)
     """PRIMARY_KEY. A unique identifier for the relevance score."""
@@ -74,6 +77,7 @@ class RelevanceScore(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the score was calculated."""
 
+
 class SourcesComparisonResult(enum.Enum):
 
     LLM_JUDGE = "llm_judge"
@@ -85,8 +89,10 @@ class SourcesComparisonResult(enum.Enum):
     HUMAN_JUDGE = "human_judge"
     """The comparison was made by a human judge."""
 
+
 class ComparisonResult(SQLModel, table=True):
     """A result of comparing two documents."""
+
     __tablename__ = "comparison_results"
 
     id: str = Field(primary_key=True)
@@ -108,9 +114,9 @@ class ComparisonResult(SQLModel, table=True):
     """The timestamp when the comparison was made."""
 
 
-
 class GenAndEvaluateQuestionParameters(SQLModel, table=True):
     """Parameters for generating and evaluating questions."""
+
     __tablename__ = "gen_and_evaluate_question_parameters"
 
     id: str = Field(primary_key=True)
@@ -136,8 +142,10 @@ class GenAndEvaluateQuestionParameters(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the evaluation was performed."""
 
+
 class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
     """Stores the evaluation of document metrics for a specific question."""
+
     __tablename__ = "document_metric_evaluated_for_question"
 
     id: str = Field(primary_key=True)
@@ -184,5 +192,12 @@ class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
 
 if __name__ == "__main__":
     import erdantic as erd
-
-    erd.draw(RelevanceScore, out="caching_models.png")
+    erd.draw(
+        Document,
+        Query,
+        RelevanceScore,
+        ComparisonResult,
+        GenAndEvaluateQuestionParameters,
+        DocumentMetricEvaluatedForQuestion,
+        out="docs/caching_models.png",
+    )

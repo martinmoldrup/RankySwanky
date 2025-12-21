@@ -5,34 +5,42 @@ The rewritten questions will be used to determine what a good answer would be fo
 The purpose is to make questions specific such that implicit needs for the user of what the want by the question is met.
 """
 import re
-from pydantic import BaseModel, Field
-from langchain_core.language_models import BaseChatModel
 from genson import SchemaBuilder
-from typing import Any, Dict
+from langchain_core.language_models import BaseChatModel
+from pydantic import BaseModel, Field
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
-from rankyswanky.models.metric_calculation_models import QuestionWithRewrites, QuestionWithRewritesAndCorrectnessProps, RetrievedDocumentStatistics
-
+from rankyswanky.models.metric_calculation_models import (
+    QuestionWithRewrites,
+    QuestionWithRewritesAndCorrectnessProps,
+    RetrievedDocumentStatistics,
+)
+from rankyswanky.models.repositories import DocumentRepository, QuestionWithRewritesAndCorrectnessPropsRepository
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
-from rankyswanky.models.repositories import QuestionWithRewritesAndCorrectnessPropsRepository, DocumentRepository
+from typing import Any
+
 
 class RewrittenAnswersStructuredOutput(BaseModel):
     """Output class to be used for LLM structured output."""
+
     rewritten_questions: list[str] = Field(
         default_factory=list,
-        description="List of rewritten questions based on the original question and perspective."
+        description="List of rewritten questions based on the original question and perspective.",
     )
+
 
 class PropertiesOfCorrectAnswerStructuredOutput(BaseModel):
     """Output class to be used for LLM structured output."""
+
     properties_of_a_good_document_containing_all_perspectives: list[str] = Field(
         default_factory=list,
-        description="List of properties that a correct answer should have."
+        description="List of properties that a correct answer should have.",
     )
 
 
 class EvaluatedValidationCriterias(BaseModel):
     """Model to hold evaluated validation criteria."""
-    evaluation: Dict[str, bool]
+
+    evaluation: dict[str, bool]
 
     def __len__(self) -> int:
         """Return the number of validation criteria."""
@@ -47,7 +55,6 @@ class EvaluatedValidationCriterias(BaseModel):
         total = len(self.evaluation)
         met = self.count_validation_criterias_met()
         return f"Validation Criteria Met: {met}/{total}"
-
 
 
 def _generate_perspective_rewritten_questions(
@@ -71,6 +78,7 @@ def _generate_perspective_rewritten_questions(
         perspective=perspective,
         rewritten_questions=response.rewritten_questions,
     )
+
 
 def _generate_validation_criterias(
     question: str,
@@ -104,6 +112,7 @@ def _generate_validation_criterias(
     assert isinstance(response, PropertiesOfCorrectAnswerStructuredOutput)
     return response
 
+
 def _sanitize_property_name(prop: str) -> str:
     """Sanitize property name to be JSON schema compatible (alphanumeric, _, -)."""
     sanitized: str = prop.strip().strip(".")
@@ -114,13 +123,14 @@ def _sanitize_property_name(prop: str) -> str:
     # Remove ' and "
     sanitized = sanitized.replace("'", "").replace('"', "")
     # Replace any other non-alphanumeric characters
-    sanitized: str = re.sub(r'[^a-zA-Z0-9_-]', '_', sanitized)
+    sanitized: str = re.sub(r"[^a-zA-Z0-9_-]", "_", sanitized)
     # # Ensure it doesn't start with a digit
     # if sanitized and sanitized[0].isdigit():
     #     sanitized = f"p_{sanitized}"
     # # Optionally, truncate if too long (e.g., 64 chars)
     # sanitized = sanitized[:64]
     return sanitized
+
 
 def _create_validation_model(
     sanitized_properties: list[str],
@@ -133,7 +143,7 @@ def _create_validation_model(
                         "description": f"Validation properties for validating if documents is suited for answering the question: {question}"})
     for prop in sanitized_properties:
         builder.add_object({prop: False})
-    
+
     return builder.to_schema()
 
 
@@ -144,7 +154,7 @@ def _evaluate_document_properties(
     llm: BaseChatModel,
 ) -> EvaluatedValidationCriterias:
     """Generate the booleans for the validation properties based on the document."""
-    property_sanitized_lookup: Dict[str, str] = {
+    property_sanitized_lookup: dict[str, str] = {
         _sanitize_property_name(prop): prop for prop in properties
     }
     json_schema = _create_validation_model(
@@ -163,9 +173,9 @@ def _evaluate_document_properties(
     )
 
 
-
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
+
     def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository, perspective: str, document_repo: DocumentRepository) -> None:
         self._llm = llm
         self._caching_repo = caching_repo
@@ -176,7 +186,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
     def reset(self) -> None:
         self._question = ""
         self._validation_criteria: QuestionWithRewritesAndCorrectnessProps | None = None
-        self._validation_criterias_met_history: Dict[str, bool] = {}
+        self._validation_criterias_met_history: dict[str, bool] = {}
 
     def set_question(self, question: str) -> None:
         self.reset()
@@ -185,7 +195,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             question=question,
             perspective=self._perspective,
         )
-        self._validation_criterias_met_history = {validation_criteria: False for validation_criteria in self._validation_criteria.properties_of_a_good_document_containing_all_perspectives}
+        self._validation_criterias_met_history = dict.fromkeys(self._validation_criteria.properties_of_a_good_document_containing_all_perspectives, False)
 
     def _get_validation_criteria_with_caching(self, question: str, perspective: str) -> QuestionWithRewritesAndCorrectnessProps:
         """Get validation criteria, using caching to avoid redundant LLM calls."""
@@ -207,7 +217,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         """
         rewritten_questions = _generate_perspective_rewritten_questions(question, perspective, llm)
         properties = _generate_validation_criterias(
-            question, rewritten_questions.rewritten_questions, llm
+            question, rewritten_questions.rewritten_questions, llm,
         )
         return QuestionWithRewritesAndCorrectnessProps(
             question=rewritten_questions.question,
@@ -215,7 +225,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             rewritten_questions=rewritten_questions.rewritten_questions,
             properties_of_a_good_document_containing_all_perspectives=properties.properties_of_a_good_document_containing_all_perspectives,
         )
-    
+
     def _calculate_document_statistics_and_relevance(self, document_content: str) -> RetrievedDocumentStatistics:
         """Calculates the relevance score of a document based on the question."""
         if not self._validation_criteria:
@@ -250,7 +260,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         retrieved_document_stats = self._calculate_document_statistics_and_relevance(document_content)
         novelty = self._calculate_novelty(retrieved_document_stats.evaluated_properties_of_a_good_document)
         self._update_validation_criterias_met_history(retrieved_document_stats.evaluated_properties_of_a_good_document)
-        return RetrievedDocumentMetrics(relevance=retrieved_document_stats.relevance, novelty=novelty if novelty is not None else 0.0,)
+        return RetrievedDocumentMetrics(relevance=retrieved_document_stats.relevance, novelty=novelty if novelty is not None else 0.0)
 
     def _calculate_novelty(self, evaluated_criteria: dict[str, bool]) -> float | None:
         """

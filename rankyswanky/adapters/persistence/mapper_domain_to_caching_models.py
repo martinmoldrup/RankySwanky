@@ -12,12 +12,12 @@ to keep the mapping stable, but can be overridden by passing callables.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from rankyswanky.adapters.persistence.caching_models import (
     Document as PersistedDocument,
-    DocumentMetricEvaluatedForQuestion,
 )
 from rankyswanky.adapters.persistence.caching_models import (
     GenAndEvaluateQuestionParameters as PersistedGenEvalParams,
@@ -34,10 +34,7 @@ from rankyswanky.models.retrieval_evaluation_models import (
     RetrievedDocumentMetrics,
     SearchEvaluationRun,
 )
-from rankyswanky.models.metric_calculation_models import (
-    RetrievedDocumentStatistics,
-)
-from typing import Callable, Dict, Iterable, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 # -----------------------------
 # ID/Hash strategies
@@ -59,7 +56,7 @@ def default_query_id_strategy(text: str) -> str:
     return sha256(text.encode("utf-8")).hexdigest()
 
 
-def default_document_hash_strategy(content: str, embedding_vector: Optional[List[float]] = None) -> str:
+def default_document_hash_strategy(content: str, embedding_vector: list[float] | None = None) -> str:
     """Create a stable hash for a document combining content and optional embedding vector."""
     m = sha256()
     m.update(content.encode("utf-8"))
@@ -77,12 +74,12 @@ def default_perspective_id_strategy(perspective_text: str) -> str:
 
 def default_gen_eval_id_strategy(query_id: str, perspective_id: str) -> str:
     """Create a stable primary key for GenAndEvaluateQuestionParameters from query+perspective IDs."""
-    return sha256(f"{query_id}:{perspective_id}".encode("utf-8")).hexdigest()
+    return sha256(f"{query_id}:{perspective_id}".encode()).hexdigest()
 
 
 def default_document_statistics_strategy(query_id: str, perspective_id: str, document_id: str) -> str:
     """Create a stable document ID from content using SHA-256 hex digest."""
-    return sha256(f"{query_id}:{perspective_id}:{document_id}".encode("utf-8")).hexdigest()
+    return sha256(f"{query_id}:{perspective_id}:{document_id}".encode()).hexdigest()
 
 
 # -----------------------------
@@ -94,8 +91,8 @@ def default_document_statistics_strategy(query_id: str, perspective_id: str, doc
 class MappingContext:
     """Holds state while mapping a run to avoid duplicates and keep stable IDs."""
 
-    document_id_by_content: Dict[str, str]
-    query_id_by_text: Dict[str, str]
+    document_id_by_content: dict[str, str]
+    query_id_by_text: dict[str, str]
 
     def __init__(self) -> None:
         self.document_id_by_content = {}
@@ -111,12 +108,12 @@ def map_retrieved_document_to_persisted_document(
     rd: RetrievedDocument,
     *,
     id_strategy: Callable[[str], str] = default_document_id_strategy,
-    hash_strategy: Callable[[str, Optional[List[float]]], str] = default_document_hash_strategy,
+    hash_strategy: Callable[[str, list[float] | None], str] = default_document_hash_strategy,
     timestamp_factory: Callable[[], datetime] = _utcnow,
 ) -> PersistedDocument:
     """Map a domain RetrievedDocument to a persistable Document."""
     content: str = rd.document_content
-    embedding: List[float] = rd.embedding_vector or []
+    embedding: list[float] = rd.embedding_vector or []
     doc_id: str = id_strategy(content)
     doc_hash: str = hash_strategy(content, embedding)
     return PersistedDocument(
@@ -148,28 +145,28 @@ def map_relevance_to_persisted_scores(
     qr: QueryResults,
     *,
     query_id: str,
-    document_id_by_content: Dict[str, str],
+    document_id_by_content: dict[str, str],
     prompt_used: str = "",
     timestamp_factory: Callable[[], datetime] = _utcnow,
-) -> List[PersistedRelevanceScore]:
+) -> list[PersistedRelevanceScore]:
     """
     Create RelevanceScore rows from a domain QueryResults object.
 
     The mapping uses RetrievedDocumentMetrics.relevance as the score when present.
     Documents without metrics are skipped.
     """
-    scores: List[PersistedRelevanceScore] = []
+    scores: list[PersistedRelevanceScore] = []
     for rd in qr.retrieved_documents:
-        metrics: Optional[RetrievedDocumentMetrics] = rd.retrieved_document_metrics
+        metrics: RetrievedDocumentMetrics | None = rd.retrieved_document_metrics
         if metrics is None:
             continue
         doc_content: str = rd.document_content
-        document_id: Optional[str] = document_id_by_content.get(doc_content)
+        document_id: str | None = document_id_by_content.get(doc_content)
         if not document_id:
             # If the document wasn't mapped yet, derive it on the fly for consistency
             document_id = default_document_id_strategy(doc_content)
         # Create a stable row ID based on query/doc to allow upsert-like behavior
-        compound_key: str = sha256(f"{query_id}:{document_id}:{prompt_used}".encode("utf-8")).hexdigest()
+        compound_key: str = sha256(f"{query_id}:{document_id}:{prompt_used}".encode()).hexdigest()
         scores.append(
             PersistedRelevanceScore(
                 id=compound_key,
@@ -178,7 +175,7 @@ def map_relevance_to_persisted_scores(
                 score=metrics.relevance,
                 prompt_used=prompt_used,
                 timestamp=timestamp_factory(),
-            )
+            ),
         )
     return scores
 
@@ -189,23 +186,23 @@ def map_search_evaluation_run_to_persistence(
     prompt_used: str = "",
     id_doc_strategy: Callable[[str], str] = default_document_id_strategy,
     id_query_strategy: Callable[[str], str] = default_query_id_strategy,
-    hash_strategy: Callable[[str, Optional[List[float]]], str] = default_document_hash_strategy,
+    hash_strategy: Callable[[str, list[float] | None], str] = default_document_hash_strategy,
     timestamp_factory: Callable[[], datetime] = _utcnow,
-) -> Tuple[List[PersistedDocument], List[PersistedQuery], List[PersistedRelevanceScore]]:
+) -> tuple[list[PersistedDocument], list[PersistedQuery], list[PersistedRelevanceScore]]:
     """
     Map a SearchEvaluationRun into persistence-layer entities.
 
     Returns three lists with deduplicated Documents and Queries, and all RelevanceScores.
     """
     ctx = MappingContext()
-    documents_by_id: Dict[str, PersistedDocument] = {}
-    queries_by_id: Dict[str, PersistedQuery] = {}
-    all_scores: List[PersistedRelevanceScore] = []
+    documents_by_id: dict[str, PersistedDocument] = {}
+    queries_by_id: dict[str, PersistedQuery] = {}
+    all_scores: list[PersistedRelevanceScore] = []
 
     for qr in run.per_query_results:
         # Map query
         pq = map_query_results_to_persisted_query(
-            qr, id_strategy=id_query_strategy, timestamp_factory=timestamp_factory
+            qr, id_strategy=id_query_strategy, timestamp_factory=timestamp_factory,
         )
         queries_by_id.setdefault(pq.id, pq)
         ctx.query_id_by_text.setdefault(qr.query, pq.id)
@@ -251,7 +248,7 @@ def map_persisted_to_query_results(
     Documents are ranked by score (desc). If multiple scores exist per document, the highest is used.
     """
     # Build best score per document
-    best_by_doc: Dict[str, float] = {}
+    best_by_doc: dict[str, float] = {}
     for s in scores:
         if s.query_id != query.id:
             continue
@@ -259,8 +256,8 @@ def map_persisted_to_query_results(
             best_by_doc[s.document_id] = s.score
 
     # Filter and sort provided documents by their best score
-    relevant_docs: List[Tuple[PersistedDocument, float]] = []
-    doc_index: Dict[str, PersistedDocument] = {d.id: d for d in documents}
+    relevant_docs: list[tuple[PersistedDocument, float]] = []
+    doc_index: dict[str, PersistedDocument] = {d.id: d for d in documents}
     for doc_id, score in best_by_doc.items():
         doc = doc_index.get(doc_id)
         if doc is not None:
@@ -268,7 +265,7 @@ def map_persisted_to_query_results(
 
     relevant_docs.sort(key=lambda t: t[1], reverse=True)
 
-    retrieved: List[RetrievedDocument] = []
+    retrieved: list[RetrievedDocument] = []
     for idx, (doc, score) in enumerate(relevant_docs, start=1):
         metrics = RetrievedDocumentMetrics(relevance=score, novelty=0.0)
         retrieved.append(
@@ -277,7 +274,7 @@ def map_persisted_to_query_results(
                 rank=idx,
                 embedding_vector=doc.embedding_vector,
                 retrieved_document_metrics=metrics,
-            )
+            ),
         )
 
     return QueryResults(
@@ -299,8 +296,8 @@ class CombinedOutputLike(Protocol):
 
     question: str
     perspective: str
-    rewritten_questions: List[str]
-    properties_of_a_good_document_containing_all_perspectives: List[str]
+    rewritten_questions: list[str]
+    properties_of_a_good_document_containing_all_perspectives: list[str]
 
 
 def map_combined_output_to_gen_and_evaluate_params(
@@ -326,7 +323,7 @@ def map_combined_output_to_gen_and_evaluate_params(
         perspective_id=perspective_id,
         rewritten_questions=list(combined.rewritten_questions),
         properties_of_a_good_document_containing_all_perspectives=list(
-            combined.properties_of_a_good_document_containing_all_perspectives
+            combined.properties_of_a_good_document_containing_all_perspectives,
         ),
     )
 
@@ -334,4 +331,3 @@ def map_combined_output_to_gen_and_evaluate_params(
 # -----------------------------
 # Map RetrievedDocumentStatistics to DocumentMetricEvaluatedForQuestion
 # -----------------------------
-

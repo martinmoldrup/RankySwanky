@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pathlib
 from rankyswanky.adapters.persistence.caching_models import Document
-from sqlmodel import Field, Session, SQLModel, create_engine
-from typing import Any, Dict, Type, TypeVar
+from sqlmodel import Session, SQLModel, create_engine
+from typing import TypeVar
 
 T = TypeVar("T", bound=SQLModel)
 
@@ -39,7 +39,7 @@ def save_document_to_db(document: Document, db_path: str = DB_PATH) -> None:
 
 
 def get_sqlmodel_by_primary_key(
-    model: type[T], primary_key_value: str, db_path: str = DB_PATH
+    model: type[T], primary_key_value: str, db_path: str = DB_PATH,
 ) -> T | None:
     """Retrieve a SQLModel instance by its primary key from the SQLite database."""
     engine = create_engine(f"sqlite:///{db_path}")

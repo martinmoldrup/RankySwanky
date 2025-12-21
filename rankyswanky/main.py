@@ -1,25 +1,25 @@
 """Defines the main entry point and function/class signatures for RankySwanky evaluation."""
 
 import asyncio
-from typing import Callable, List, Dict
-
+from collections.abc import Callable
 from langchain_core.language_models import BaseChatModel
-from rankyswanky.models.retrieval_evaluation_models import (
-    SearchEvaluationRun,
-    SearchEvaluationRunCollection,
-    TestConfiguration,
+from rankyswanky.adapters import llm
+from rankyswanky.adapters.persistence.repositories_sqllite import (
+    DocumentRepositorySQLite,
+    QuestionWithRewritesAndCorrectnessPropsRepositorySQLite,
 )
+from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.application.builders.search_evaluation_run_builder import (
     SearchEvaluationRunBuilder,
 )
 from rankyswanky.application.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
-from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
-from rankyswanky.adapters import llm
-from rankyswanky.adapters.persistence.repositories_sqllite import (
-    QuestionWithRewritesAndCorrectnessPropsRepositorySQLite, DocumentRepositorySQLite
+from rankyswanky.models.retrieval_evaluation_models import (
+    SearchEvaluationRun,
+    SearchEvaluationRunCollection,
+    TestConfiguration,
 )
 
 
@@ -28,29 +28,29 @@ class RankySwanky:
 
     def __init__(
         self,
-        retriever: Callable[[str], List[str]] | None = None,
+        retriever: Callable[[str], list[str]] | None = None,
         chat_llm: BaseChatModel = llm.chat_llm,
         perspective: str = "You are a person seeking to understand all sides of an issue thoroughly.",
     ) -> None:
         """Initializes RankySwanky with optional single retriever."""
-        self.engines: Dict[str, Callable[[str], List[str]]] = {}
+        self.engines: dict[str, Callable[[str], list[str]]] = {}
         self._chat_llm = chat_llm
         self._perspective = perspective
         if retriever is not None:
             self.engines["default"] = retriever
 
-    def add_retriever(self, name: str, retriever: Callable[[str], List[str]]) -> None:
+    def add_retriever(self, name: str, retriever: Callable[[str], list[str]]) -> None:
         """Adds a single named retriever to the RankySwanky instance."""
         self.engines[name] = retriever
 
-    def add_retrievers(self, retrievers: Dict[str, Callable[[str], List[str]]]) -> None:
+    def add_retrievers(self, retrievers: dict[str, Callable[[str], list[str]]]) -> None:
         """Adds multiple named retrievers to the RankySwanky instance."""
         self.engines.update(retrievers)
 
     def _evaluate_single_retriever(
         self,
-        retriever: Callable[[str], List[str]],
-        queries: List[str],
+        retriever: Callable[[str], list[str]],
+        queries: list[str],
         engine_name: str,
         test_configuration: TestConfiguration | None = None,
     ) -> SearchEvaluationRun:
@@ -81,13 +81,13 @@ class RankySwanky:
         return search_evaluation_run
 
     def evaluate(
-        self, queries: List[str], test_configuration: TestConfiguration | None = None
+        self, queries: list[str], test_configuration: TestConfiguration | None = None,
     ) -> SearchEvaluationRunCollection:
         """Evaluates all retrievers on the provided queries and returns a SearchEvaluationRunCollection."""
         return asyncio.run(self.aevaluate(queries, test_configuration))
 
     async def aevaluate(
-        self, queries: List[str], test_configuration: TestConfiguration | None = None
+        self, queries: list[str], test_configuration: TestConfiguration | None = None,
     ) -> SearchEvaluationRunCollection:
         """Async: Evaluate all engines on all queries and return a SearchEvaluationRunCollection."""
         tasks = [
@@ -106,8 +106,8 @@ class RankySwanky:
     @classmethod
     def quick_compare(
         cls,
-        retrievers: Dict[str, Callable[[str], List[str]]],
-        queries: List[str],
+        retrievers: dict[str, Callable[[str], list[str]]],
+        queries: list[str],
         test_configuration: TestConfiguration | None = None,
     ) -> SearchEvaluationRunCollection:
         """Quickly compares multiple retrievers without explicit setup, returning a SearchEvaluationRunCollection."""

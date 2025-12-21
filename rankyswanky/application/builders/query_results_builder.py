@@ -1,5 +1,5 @@
-from rankyswanky.models.retrieval_evaluation_models import QueryResults, RetrievedDocument, RetrievedDocumentMetrics
 from rankyswanky.application.metrics.aggregated_metrics import calculate_per_query_retrieval_metrics
+from rankyswanky.models.retrieval_evaluation_models import QueryResults, RetrievedDocument, RetrievedDocumentMetrics
 
 
 class QueryResultsBuilder:
@@ -34,12 +34,12 @@ class QueryResultsBuilder:
             raise ValueError("Ranked search results length must match the number of metrics.")
         self.ranked_search_results = ranked_search_results
         return self
-    
+
     def set_answer(self, answer: str) -> "QueryResultsBuilder":
         """Sets the answer for the query."""
         self.answer = answer
         return self
-    
+
     def set_embeddings(self, embeddings: list[list[float]]) -> "QueryResultsBuilder":
         """Sets the vector embeddings for the search results."""
         if self.ranked_search_results and len(self.ranked_search_results) != len(embeddings):
@@ -48,7 +48,7 @@ class QueryResultsBuilder:
             raise ValueError("Embeddings length must match the number of metrics.")
         self.embeddings = embeddings
         return self
-    
+
     def set_metrics(self, metrics: list[RetrievedDocumentMetrics]) -> "QueryResultsBuilder":
         """Sets the metrics for the search results."""
         if self.ranked_search_results and len(self.ranked_search_results) != len(metrics):
@@ -57,7 +57,7 @@ class QueryResultsBuilder:
             raise ValueError("Metrics length must match the number of embeddings.")
         self.metrics = metrics
         return self
-    
+
     def set_retrieval_time_ms(self, retrieval_time_ms: int) -> "QueryResultsBuilder":
         """Sets the retrieval time in milliseconds for the search results."""
         self.retrieval_time_ms = retrieval_time_ms
@@ -67,10 +67,10 @@ class QueryResultsBuilder:
         """Builds and returns a RetrievedDocumentsForQuery object."""
         if self.query is None:
             raise ValueError("Query must be set before building the RetrievedDocumentsForQuery.")
-        
+
         if not self.ranked_search_results:
             raise ValueError("Ranked search results must be set before building the RetrievedDocumentsForQuery.")
-        
+
         search_results = [
             RetrievedDocument(
                 document_content=content,
@@ -84,5 +84,5 @@ class QueryResultsBuilder:
             query=self.query,
             retrieved_documents=search_results,
             retrieval_time_ms=self.retrieval_time_ms if self.retrieval_time_ms is not None else 0,
-            query_metrics=calculate_per_query_retrieval_metrics(search_results) if self.metrics else None
-        ) 
+            query_metrics=calculate_per_query_retrieval_metrics(search_results) if self.metrics else None,
+        )
