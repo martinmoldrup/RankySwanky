@@ -39,14 +39,19 @@ def calculate_metrics_at_k(documents: list[RetrievedDocument], k_value: int) -> 
     gains = [doc.retrieved_document_metrics.calculate_gain() for doc in top_k_documents if doc.retrieved_document_metrics]
     if not all(doc.retrieved_document_metrics for doc in top_k_documents):
         raise ValueError("All retrieved documents in the top k must have metrics to calculate metrics at k.")
-    precision = sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant) / k_value
-    recall = sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant) / sum(1 for doc in documents if doc.retrieved_document_metrics and doc.retrieved_document_metrics.is_relevant)
+    relevant_docs_within_k = sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant)
+    precision = relevant_docs_within_k / k_value
+    relevant_document_count = sum(1 for doc in documents if doc.retrieved_document_metrics and doc.retrieved_document_metrics.is_relevant)
+    if relevant_document_count:
+        recall = relevant_docs_within_k / relevant_document_count
+    else:
+        recall = 0.0    
     ndcg = calculate_ndcg(gains)
     return RetrievalMetricsAtK(
         precision=precision,
         recall=recall,
         f1_score=2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0,
-        mean_average_precision=sum(1 for doc in top_k_documents if doc.retrieved_document_metrics.is_relevant) / k_value,
+        mean_average_precision=relevant_docs_within_k / k_value,
         normalized_discounted_cumulative_gain=ndcg,
         normalized_cumulative_gain=calculate_normalized_cumulative_gain(gains),
     )

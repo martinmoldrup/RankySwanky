@@ -253,25 +253,25 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         )
         return retrieved_document_stats
 
-    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics | None:
+    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics:
         """Calculates the relevance score of a document based on the question."""
         if not self._validation_criteria:
-            return None
+            raise ValueError("Validation criteria not set. Call set_question() first.")
         retrieved_document_stats = self._calculate_document_statistics_and_relevance(document_content)
         novelty = self._calculate_novelty(retrieved_document_stats.evaluated_properties_of_a_good_document)
         self._update_validation_criterias_met_history(retrieved_document_stats.evaluated_properties_of_a_good_document)
         return RetrievedDocumentMetrics(relevance=retrieved_document_stats.relevance, novelty=novelty if novelty is not None else 0.0)
 
-    def _calculate_novelty(self, evaluated_criteria: dict[str, bool]) -> float | None:
+    def _calculate_novelty(self, evaluated_criteria: dict[str, bool]) -> float:
         """
         Calculates how big a percentage of the met validation criteria are met for the first time.
 
         novelty = newly met validation criteria / met validation criteria by module
         """
         if not evaluated_criteria:
-            return None
+            raise ValueError("No evaluated criteria provided.")
         if not self._validation_criteria:
-            return None
+            raise ValueError("Validation criteria not set. Call set_question() first.")
         count_of_met_criteria: int = 0
         newly_met_criteria_count: int = 0
         for prop, met in evaluated_criteria.items():

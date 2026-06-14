@@ -47,16 +47,16 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         )
         return evaluation_result.relevance_score_1_to_5
 
-    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics | None:
+    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics:
         """Create retrieved document metrics from the context."""
         relevance_score = self.get_relevance_score(document_content)
-        normalized_relevance = (relevance_score - 1) / 4 if relevance_score is not None else 0.0
+        normalized_relevance = (relevance_score - 1) / 4
         if relevance_score is not None:
             return RetrievedDocumentMetrics(
                 relevance=normalized_relevance,
                 novelty=0.0,
             )
-        return None
+        raise ValueError("Could not determine relevance score.")
 
 
 if __name__ == "__main__":

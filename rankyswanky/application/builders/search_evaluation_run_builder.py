@@ -7,7 +7,11 @@ from rankyswanky.models.retrieval_evaluation_models import (
 
 
 class SearchEvaluationRunBuilder:
-    """Builder for SearchEvaluationRun objects."""
+    """
+    Builder for SearchEvaluationRun objects.
+
+    This is the outer container for retrieval evaluation results bulk run.
+    """
 
     def __init__(self) -> None:
         """Initialize the builder with default values."""

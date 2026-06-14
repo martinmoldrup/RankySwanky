@@ -1,5 +1,6 @@
-from rankyswanky.main import RankySwanky
+from rankyswanky.main import RankySwanky, AsyncRankySwanky
 
 __all__ = [
     "RankySwanky",
+    "AsyncRankySwanky",
 ]

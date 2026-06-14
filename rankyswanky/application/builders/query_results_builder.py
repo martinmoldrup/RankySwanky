@@ -3,7 +3,11 @@ from rankyswanky.models.retrieval_evaluation_models import QueryResults, Retriev
 
 
 class QueryResultsBuilder:
-    """Builder for creating RetrievedDocumentsForQuery objects."""
+    """
+    Builder for creating QueryResults objects.
+
+    This builder contructs the inner container for a single query's retrieval evaluation results.
+    """
 
     def __init__(self) -> None:
         """Initializes the builder with a query."""

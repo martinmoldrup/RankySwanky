@@ -104,7 +104,7 @@ class ComparisonResult(SQLModel, table=True):
     predicate: str = "isJudgedMoreRelevantThan"
     """The predicate used for comparison, e.g. 'isJudgedMoreRelevantThan'."""
 
-    id_document_subject: str
+    id_document_subject: str = Field(foreign_key="documents.id")
     """FOREIGN_KEY:Document.id. The ID of the document subject being compared."""
 
     source: SourcesComparisonResult
@@ -191,13 +191,8 @@ class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
 #     """List of comparison results between documents."""
 
 if __name__ == "__main__":
-    import erdantic as erd
-    erd.draw(
-        Document,
-        Query,
-        RelevanceScore,
-        ComparisonResult,
-        GenAndEvaluateQuestionParameters,
-        DocumentMetricEvaluatedForQuestion,
-        out="docs/caching_models.png",
+    from eralchemy import render_er
+    render_er(
+        input=SQLModel.metadata,
+        output="docs/caching_models2.png",
     )

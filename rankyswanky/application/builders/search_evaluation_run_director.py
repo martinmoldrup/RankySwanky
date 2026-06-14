@@ -12,6 +12,10 @@ from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     TestConfiguration,
 )
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class SearchEvaluationRunDirector:
@@ -26,9 +30,15 @@ class SearchEvaluationRunDirector:
         relevance_evaluator: RelevanceEvaluatorBase,
     ) -> None:
         """Initialize the director with a builder."""
+
         self._builder = evaluation_run_builder
+        """The main object we are building for a bulk evaluation run, we build a single of these per run."""
+
         self._query_results_builder = query_results_builder
+        """Builder for the inner QueryResults objects we build multiple of these, one per query."""
+
         self._relevance_evaluator = relevance_evaluator
+        """Class to be used calculate the relevance added to the QueryResults objects."""
 
     def construct(
         self,
@@ -40,7 +50,8 @@ class SearchEvaluationRunDirector:
         """Construct a SearchEvaluationRun using the provided parameters."""
         self._builder.reset()
         query_results: list[QueryResults] = []
-        for query in queries:
+        for i, query in enumerate(queries):
+            logger.info(f"Evaluating query {i + 1}/{len(queries)}: {query}")
             start_time: float = time.time()
             results: list[str] = retriever(query)
             elapsed_ms: int = round(
@@ -60,7 +71,10 @@ class SearchEvaluationRunDirector:
         )
 
     def _build_query_result_object(
-        self, query: str, results: list[str], elapsed_ms: int,
+        self,
+        query: str,
+        results: list[str],
+        elapsed_ms: int,
     ) -> QueryResults:
         """Build a QueryResults object for a given query and its results."""
         self._query_results_builder.reset()
@@ -69,24 +83,16 @@ class SearchEvaluationRunDirector:
         self._query_results_builder.set_retrieval_time_ms(elapsed_ms)
 
         self._relevance_evaluator.set_question(query)
-        metrics = [
-            self._calculate_metrics_for_a_document(search_result_content)
-            for search_result_content in results
-        ]
+        metrics: list[RetrievedDocumentMetrics] = []
+        for search_result_content in results:
+            retrieved_document_metrics = self._relevance_evaluator.create_retrieved_document_metrics(
+                document_content=search_result_content,
+            )
+            if retrieved_document_metrics is not None:
+                metrics.append(retrieved_document_metrics)
         self._query_results_builder.set_metrics(metrics)
         query_result = self._query_results_builder.build()
         return query_result
-
-    def _calculate_metrics_for_a_document(
-        self, search_result_content: str,
-    ) -> RetrievedDocumentMetrics:
-        """Calculate per-document metrics for a given query and result content."""
-        retrieved_document_metrics = (
-            self._relevance_evaluator.create_retrieved_document_metrics(
-                document_content=search_result_content,
-            )
-        )
-        return retrieved_document_metrics
 
 
 if __name__ == "__main__":
@@ -110,6 +116,9 @@ if __name__ == "__main__":
         ]
 
     evaluation_run = director.construct(
-        test_config, queries, mock_retriever, "MyRetrievalEngine",
+        test_config,
+        queries,
+        mock_retriever,
+        "MyRetrievalEngine",
     )
     print(evaluation_run)

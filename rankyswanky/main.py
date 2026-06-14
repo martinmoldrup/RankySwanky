@@ -1,7 +1,8 @@
 """Defines the main entry point and function/class signatures for RankySwanky evaluation."""
 
 import asyncio
-from collections.abc import Callable
+import logging
+from collections.abc import Awaitable, Callable
 from langchain_core.language_models import BaseChatModel
 from rankyswanky.adapters import llm
 from rankyswanky.adapters.persistence.repositories_sqllite import (
@@ -22,6 +23,7 @@ from rankyswanky.models.retrieval_evaluation_models import (
     TestConfiguration,
 )
 
+logger = logging.getLogger(__name__)
 
 class RankySwanky:
     """Wraps search engines or retrievers and provides evaluation methods."""
@@ -115,6 +117,109 @@ class RankySwanky:
         instance.add_retrievers(retrievers)
         return instance.evaluate(queries, test_configuration)
 
+
+class AsyncRankySwanky(RankySwanky):
+    """Take a search engine that needs to be ran asyncly."""
+
+    def __init__(
+        self,
+        retriever: Callable[[str], Awaitable[list[str]]] | None = None,
+        chat_llm: BaseChatModel = llm.chat_llm,
+        perspective: str = "You are a person seeking to understand all sides of an issue thoroughly.",
+    ) -> None:
+        """Initializes AsyncRankySwanky with optional single async retriever."""
+        self.engines: dict[str, Callable[[str], Awaitable[list[str]]]] = {}  # type: ignore[assignment]
+        self._chat_llm = chat_llm
+        self._perspective = perspective
+        if retriever is not None:
+            self.engines["default"] = retriever
+
+    def add_retriever(self, name: str, retriever: Callable[[str], Awaitable[list[str]]]) -> None:  # type: ignore[override]
+        """Adds a single named async retriever to the AsyncRankySwanky instance."""
+        self.engines[name] = retriever
+
+    def add_retrievers(self, retrievers: dict[str, Callable[[str], Awaitable[list[str]]]]) -> None:  # type: ignore[override]
+        """Adds multiple named async retrievers to the AsyncRankySwanky instance."""
+        self.engines.update(retrievers)
+
+    async def _async_evaluate_single_retriever(
+        self,
+        retriever: Callable[[str], Awaitable[list[str]]],
+        queries: list[str],
+        engine_name: str,
+        test_configuration: TestConfiguration | None = None,
+    ) -> SearchEvaluationRun:
+        """Evaluates a single async retriever on the provided queries."""
+        import time
+        from rankyswanky.application.metrics.aggregated_metrics import calculate_aggregated_retrieval_metrics
+
+        if test_configuration is None:
+            test_configuration = TestConfiguration()
+        search_evaluation_builder = SearchEvaluationRunBuilder()
+        query_results_builder = QueryResultsBuilder()
+        caching_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
+        document_repo = DocumentRepositorySQLite()
+        relevance_evaluator = RelevanceEvaluator(
+            llm=self._chat_llm,
+            caching_repo=caching_repo,
+            perspective=self._perspective,
+            document_repo=document_repo,
+        )
+        search_evaluation_director = SearchEvaluationRunDirector(
+            search_evaluation_builder,
+            query_results_builder,
+            relevance_evaluator,
+        )
+
+        query_results = []
+        for i, query in enumerate(queries):
+            logger.info(f"Evaluating query {i + 1}/{len(queries)}: {query}")
+            start_time: float = time.time()
+            results: list[str] = await retriever(query)
+            logger.info(f"Retrieved {len(results)} search results from {engine_name}")
+            elapsed_ms: int = round((time.time() - start_time) * 1000)
+            query_result = search_evaluation_director._build_query_result_object(query, results, elapsed_ms)
+            query_results.append(query_result)
+
+        aggregated_metrics = calculate_aggregated_retrieval_metrics(query_results)
+        return (
+            search_evaluation_builder.reset()
+            .set_test_configuration(test_configuration)
+            .set_query_results(query_results)
+            .set_engine_name(engine_name)
+            .set_retrieval_metrics(aggregated_metrics)
+            .build()
+        )
+
+    async def aevaluate(
+        self,
+        queries: list[str],
+        test_configuration: TestConfiguration | None = None,
+    ) -> SearchEvaluationRunCollection:
+        """Async: Evaluate all async engines on all queries and return a SearchEvaluationRunCollection."""
+        tasks = [
+            self._async_evaluate_single_retriever(
+                retriever,
+                queries,
+                engine_name,
+                test_configuration,
+            )
+            for engine_name, retriever in self.engines.items()
+        ]
+        results = await asyncio.gather(*tasks)
+        return SearchEvaluationRunCollection(runs=list(results))
+
+    @classmethod
+    def quick_compare(  # type: ignore[override]
+        cls,
+        retrievers: dict[str, Callable[[str], Awaitable[list[str]]]],
+        queries: list[str],
+        test_configuration: TestConfiguration | None = None,
+    ) -> SearchEvaluationRunCollection:
+        """Quickly compares multiple async retrievers without explicit setup, returning a SearchEvaluationRunCollection."""
+        instance = cls()
+        instance.add_retrievers(retrievers)
+        return instance.evaluate(queries, test_configuration)
 
 if __name__ == "__main__":
     query = "What is the capital of France?"

@@ -8,5 +8,5 @@ class RelevanceEvaluatorBase(ABC):
         """Set the question for the relevance evaluator."""
 
     @abstractmethod
-    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics | None:
+    def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics:
         """Get the relevance score of the context to the question using an LLM."""
