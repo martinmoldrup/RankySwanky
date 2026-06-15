@@ -54,70 +54,27 @@ class Query(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the query was created."""
 
+class UserProfile(SQLModel, table=True):
+    """A user profile representing a perspective from which queries and documents can be evaluated."""
 
-class RelevanceScore(SQLModel, table=True):
-    """A relevance score for a document in the context of a query."""
-
-    __tablename__ = "relevance_scores"
-    id: str = Field(primary_key=True)
-    """PRIMARY_KEY. A unique identifier for the relevance score."""
-
-    document_id: str = Field(foreign_key="documents.id")
-    """FOREIGN_KEY:Document.id. The ID of the document being scored."""
-
-    query_id: str = Field(foreign_key="queries.id")
-    """FOREIGN_KEY:Query.id. The ID of the query."""
-
-    score: float
-    """The relevance score of the document for the query."""
-
-    prompt_used: str
-    """The prompt used to generate the relevance score."""
-
-    timestamp: datetime = Field(default_factory=datetime.now)
-    """The timestamp when the score was calculated."""
-
-
-class SourcesComparisonResult(enum.Enum):
-
-    LLM_JUDGE = "llm_judge"
-    """The comparison was made by an LLM judge."""
-
-    TRANSITIVE_INFERENCE = "transitive_inference"
-    """The property has been found by Transitive inference."""
-
-    HUMAN_JUDGE = "human_judge"
-    """The comparison was made by a human judge."""
-
-
-class ComparisonResult(SQLModel, table=True):
-    """A result of comparing two documents."""
-
-    __tablename__ = "comparison_results"
+    __tablename__ = "user_profiles"
 
     id: str = Field(primary_key=True)
-    """PRIMARY_KEY. A unique identifier for the comparison result."""
+    """PRIMARY_KEY. A unique identifier for the user profile."""
 
-    id_document_object: str = Field(foreign_key="documents.id")
-    """FOREIGN_KEY:Document.id. The ID of the document object being compared."""
+    name: str
+    """The name of the user profile or perspective."""
 
-    predicate: str = "isJudgedMoreRelevantThan"
-    """The predicate used for comparison, e.g. 'isJudgedMoreRelevantThan'."""
-
-    id_document_subject: str = Field(foreign_key="documents.id")
-    """FOREIGN_KEY:Document.id. The ID of the document subject being compared."""
-
-    source: SourcesComparisonResult
-    """The source of the comparison result, e.g. LLM judge, transitive inference, or human judge."""
+    description: str
+    """A description of the user profile or perspective."""
 
     timestamp: datetime = Field(default_factory=datetime.now)
-    """The timestamp when the comparison was made."""
+    """The timestamp when the user profile was created."""
 
-
-class GenAndEvaluateQuestionParameters(SQLModel, table=True):
+class QueryEvaluationCriteriaCache(SQLModel, table=True):  # Has data, Approach 2
     """Parameters for generating and evaluating questions."""
 
-    __tablename__ = "gen_and_evaluate_question_parameters"
+    __tablename__ = "query_evaluation_criteria_cache"
 
     id: str = Field(primary_key=True)
     """PRIMARY_KEY. A unique identifier for the parameters record."""
@@ -125,15 +82,15 @@ class GenAndEvaluateQuestionParameters(SQLModel, table=True):
     query_id: str = Field(foreign_key="queries.id")
     """The ID of the original query/question."""
 
-    perspective_id: str
+    user_profile_id: str = Field(foreign_key="user_profiles.id")
     """The perspective from which the question is generated."""
 
-    rewritten_questions: list[str] = Field(
+    query_rewrites: list[str] = Field(
         default_factory=list,
         description="List of rewritten questions based on the original question and perspective.",
         sa_column=Column(JSON),
     )
-    properties_of_a_good_document_containing_all_perspectives: list[str] = Field(
+    evaluation_criteria: list[str] = Field(
         default_factory=list,
         description="List of properties that a correct answer should have.",
         sa_column=Column(JSON),
@@ -143,10 +100,10 @@ class GenAndEvaluateQuestionParameters(SQLModel, table=True):
     """The timestamp when the evaluation was performed."""
 
 
-class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
+class DocumentRelevanceEvaluationCache(SQLModel, table=True):  # Has data, Approach 2
     """Stores the evaluation of document metrics for a specific question."""
 
-    __tablename__ = "document_metric_evaluated_for_question"
+    __tablename__ = "document_relevance_evaluation_cache"
 
     id: str = Field(primary_key=True)
     """PRIMARY_KEY. A unique identifier for the evaluation record."""
@@ -154,8 +111,8 @@ class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
     document_id: str = Field(foreign_key="documents.id")
     """FOREIGN_KEY:Document.id. The ID of the document being evaluated."""
 
-    perspective_id: str
-    """The perspective from which the document is evaluated."""
+    user_profile_id: str = Field(foreign_key="user_profiles.id")
+    """FOREIGN_KEY:UserProfile.id. The perspective from which the document is evaluated."""
 
     query_id: str = Field(foreign_key="queries.id")
     """FOREIGN_KEY:Query.id. The ID of the query/question."""
@@ -163,7 +120,12 @@ class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
     relevance_score: float
     """The relevance score of the document for the question."""
 
-    evaluated_properties_of_a_good_document: dict[str, bool] = Field(
+    query_evaluation_criteria_id: str = Field(
+        foreign_key="query_evaluation_criteria_cache.id"
+    )
+    """FOREIGN_KEY:QueryEvaluationCriteriaCache.id. The ID of the query evaluation criteria."""
+
+    criteria_met: dict[str, bool] = Field(
         default_factory=dict,
         description="A dictionary mapping properties of a good document to boolean values indicating whether the document possesses each property.",
         sa_column=Column(JSON),
@@ -174,6 +136,65 @@ class DocumentMetricEvaluatedForQuestion(SQLModel, table=True):
 
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the evaluation was performed."""
+
+# class SourcesComparisonResult(enum.Enum):
+#     """Enum for the source of a comparison result between documents."""
+
+#     LLM_JUDGE = "llm_judge"
+#     """The comparison was made by an LLM judge."""
+
+#     TRANSITIVE_INFERENCE = "transitive_inference"
+#     """The property has been found by Transitive inference."""
+
+#     HUMAN_JUDGE = "human_judge"
+#     """The comparison was made by a human judge."""
+
+
+# class DocumentsInferedComparisonResultCache(SQLModel, table=True):  # Approach 3
+#     """A result of comparing two documents."""
+
+#     __tablename__ = "documents_infered_comparison_results"
+
+#     id: str = Field(primary_key=True)
+#     """PRIMARY_KEY. A unique identifier for the comparison result."""
+
+#     id_document_object: str = Field(foreign_key="documents.id")
+#     """FOREIGN_KEY:Document.id. The ID of the document object being compared."""
+
+#     predicate: str = "isJudgedMoreRelevantThan"
+#     """The predicate used for comparison, e.g. 'isJudgedMoreRelevantThan'."""
+
+#     id_document_subject: str = Field(foreign_key="documents.id")
+#     """FOREIGN_KEY:Document.id. The ID of the document subject being compared."""
+
+#     source: SourcesComparisonResult
+#     """The source of the comparison result, e.g. LLM judge, transitive inference, or human judge."""
+
+#     timestamp: datetime = Field(default_factory=datetime.now)
+#     """The timestamp when the comparison was made."""
+
+
+# class RelevanceScore(SQLModel, table=True):  # For approach 1
+#     """A relevance score for a document in the context of a query."""
+
+#     __tablename__ = "relevance_scores"
+#     id: str = Field(primary_key=True)
+#     """PRIMARY_KEY. A unique identifier for the relevance score."""
+
+#     document_id: str = Field(foreign_key="documents.id")
+#     """FOREIGN_KEY:Document.id. The ID of the document being scored."""
+
+#     query_id: str = Field(foreign_key="queries.id")
+#     """FOREIGN_KEY:Query.id. The ID of the query."""
+
+#     score: float
+#     """The relevance score of the document for the query."""
+
+#     prompt_used: str
+#     """The prompt used to generate the relevance score."""
+
+#     timestamp: datetime = Field(default_factory=datetime.now)
+#     """The timestamp when the score was calculated."""
 
 
 # class RetrievalSystemRoot(SQLModel, table=True):
