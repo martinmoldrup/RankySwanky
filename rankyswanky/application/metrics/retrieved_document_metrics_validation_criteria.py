@@ -16,6 +16,7 @@ from rankyswanky.models.metric_calculation_models import (
     QuestionWithRewrites,
     QuestionWithRewritesAndCorrectnessProps,
     RetrievedDocumentStatistics,
+    WeightedProperty,
 )
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 from typing import Any
@@ -30,12 +31,26 @@ class RewrittenAnswersStructuredOutput(BaseModel):
     )
 
 
+class WeightedPropertyStructuredOutput(BaseModel):
+    """Single validation property with an associated importance weight."""
+
+    name: str = Field(
+        default="",
+        description="Name of the validation property as a short sentence.",
+    )
+    weight: float = Field(
+        default=1.0,
+        description="Positive importance weight for this property.",
+        gt=0,
+    )
+
+
 class PropertiesOfCorrectAnswerStructuredOutput(BaseModel):
     """Output class to be used for LLM structured output."""
 
-    properties_of_a_good_document_containing_all_perspectives: list[str] = Field(
+    properties: list[WeightedPropertyStructuredOutput] = Field(
         default_factory=list,
-        description="List of properties that a correct answer should have.",
+        description="List of weighted properties that a correct answer should have.",
     )
 
 
@@ -106,7 +121,9 @@ def _generate_validation_criterias(
         f"Original Question: {question}\n"
         f"Rewritten Questions (for inspiration to understand different reasons why the question might be asked):\n"
         f"{chr(10).join(f'- {rq}' for rq in rewritten_questions)}\n"
-        f"Return a list of properties that a good answer should embody. Each property should be formulated as a sentence starting with 'It,' using active voice to guide the evaluation of the documentation."
+        f"Return a properties list where each item has: "
+        f"name (the property sentence starting with 'It' in active voice) and "
+        f"weight (a positive number indicating how critical that property is for answering the question)."
     )
     response = llm.with_structured_output(
         PropertiesOfCorrectAnswerStructuredOutput,
@@ -192,7 +209,7 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
     def reset(self) -> None:
         self._question = ""
         self._validation_criteria: QuestionWithRewritesAndCorrectnessProps | None = None
-        self._validation_criterias_met_history: dict[str, bool] = {}
+        self._validation_criterias_met_history: dict[str, int] = {}
 
     def set_question(self, question: str) -> None:
         self.reset()
@@ -202,7 +219,13 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             perspective=self._perspective,
             compute_criteria_fn=lambda q, p: self._extract_validation_criterias(q, p, self._llm),
         )
-        self._validation_criterias_met_history = dict.fromkeys(self._validation_criteria.properties_of_a_good_document_containing_all_perspectives, False)
+        self._validation_criterias_met_history = dict.fromkeys(
+            (
+                _sanitize_property_name(prop.name)
+                for prop in self._validation_criteria.weighted_properties
+            ),
+            0,
+        )
 
     def _extract_validation_criterias(
         self,
@@ -217,13 +240,20 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         properties = _generate_validation_criterias(
             question, rewritten_questions.rewritten_questions, llm,
         )
+        weighted_properties = [
+            WeightedProperty(name=prop.name, weight=prop.weight)
+            for prop in properties.properties
+            if prop.name.strip()
+        ]
+        normalized_weighted_properties = self._normalize_weighted_properties(
+            weighted_properties,
+        )
         return QuestionWithRewritesAndCorrectnessProps(
             question=rewritten_questions.question,
             perspective=rewritten_questions.perspective,
             rewritten_questions=rewritten_questions.rewritten_questions,
-            properties_of_a_good_document_containing_all_perspectives=properties.properties_of_a_good_document_containing_all_perspectives,
+            weighted_properties=normalized_weighted_properties,
         )
-
     def _calculate_document_statistics_and_relevance(self, document_content: str) -> RetrievedDocumentStatistics:
         """Calculates the relevance score of a document based on the question."""
         if not self._validation_criteria:
@@ -245,7 +275,9 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
             raise ValueError("Validation criteria not set. Call set_question() first.")
         evaluated_criteria = _evaluate_document_properties(
             question=question,
-            properties=self._validation_criteria.properties_of_a_good_document_containing_all_perspectives,
+            properties=[
+                prop.name for prop in self._validation_criteria.weighted_properties
+            ],
             document=document_content,
             llm=self._llm,
         )
@@ -266,28 +298,50 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
 
     def _calculate_novelty(self, evaluated_criteria: dict[str, bool]) -> float:
         """
-        Calculates how big a percentage of the met validation criteria are met for the first time.
+        Importance-weighted novelty decay model.
 
-        novelty = newly met validation criteria / met validation criteria by module
+        For each dimension i covered by the document:
+            novelty_i = 1 / (1 + coverage_i^alpha * importance_i)
+        novelty_doc = sum(importance_i * novelty_i for covered dimensions)
+
+        Novelty is bounded (0, 1], never drops to zero, and is 1 when all
+        dimensions are covered for the first time by a perfectly relevant document.
         """
         if not evaluated_criteria:
             raise ValueError("No evaluated criteria provided.")
         if not self._validation_criteria:
             raise ValueError("Validation criteria not set. Call set_question() first.")
-        count_of_met_criteria: int = 0
-        newly_met_criteria_count: int = 0
-        for prop, met in evaluated_criteria.items():
-            if met:
-                count_of_met_criteria += 1
-                if not self._validation_criterias_met_history.get(prop, False):
-                    newly_met_criteria_count += 1
-        return newly_met_criteria_count / count_of_met_criteria if count_of_met_criteria > 0 else 0
+        normalized_weighted_properties = self._normalize_weighted_properties(
+            self._validation_criteria.weighted_properties,
+        )
+        novelty_doc: float = 0.0
+        for prop in normalized_weighted_properties:
+            sanitized_prop = _sanitize_property_name(prop.name)
+            importance_i = prop.weight
+            if evaluated_criteria.get(sanitized_prop, False):
+                coverage_i: int = self._validation_criterias_met_history.get(sanitized_prop, 0)
+                novelty_i: float = 1.0 / (1.0 + (coverage_i ** 1.0) * importance_i)
+                novelty_doc += importance_i * novelty_i
+        return novelty_doc
 
     def _update_validation_criterias_met_history(self, evaluated_criteria: dict[str, bool]) -> None:
-        """Updates the history of validation criterias met."""
+        """Increments the coverage count for each dimension met by the current document."""
         for prop, met in evaluated_criteria.items():
             if met:
-                self._validation_criterias_met_history[prop] = True
+                self._validation_criterias_met_history[prop] = self._validation_criterias_met_history.get(prop, 0) + 1
+
+    @staticmethod
+    def _normalize_weighted_properties(
+        weighted_properties: list[WeightedProperty],
+    ) -> list[WeightedProperty]:
+        """Normalize weights so they sum to 1 while preserving property order."""
+        if not weighted_properties:
+            return []
+        total_weight = sum(prop.weight for prop in weighted_properties) or 1.0
+        return [
+            WeightedProperty(name=prop.name, weight=prop.weight / total_weight)
+            for prop in weighted_properties
+        ]
 
 # if __name__ == "__main__":
 #     from rankyswanky.adapters import llm
@@ -302,8 +356,8 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
 #                 for rq in evaluator._validation_criteria.rewritten_questions:
 #                     print(f"- {rq}")
 #                 print("Properties of a Good Document:")
-#                 for prop in evaluator._validation_criteria.properties_of_a_good_document_containing_all_perspectives:
-#                     print(f"- {prop}")
+#                 for prop in evaluator._validation_criteria.weighted_properties:
+#                     print(f"- {prop.name} (weight={prop.weight})")
 #                 print("\n" + "="*50 + "\n")
 #                 for document in documents:
 #                     metrics = evaluator.create_retrieved_document_metrics(document)

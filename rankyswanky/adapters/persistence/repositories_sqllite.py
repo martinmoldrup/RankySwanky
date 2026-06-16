@@ -20,6 +20,7 @@ from rankyswanky.adapters.persistence.caching_models import (
 from rankyswanky.models.metric_calculation_models import (
     QuestionWithRewritesAndCorrectnessProps,
     RetrievedDocumentStatistics,
+    WeightedProperty,
 )
 from rankyswanky.models.repositories import (
     CachingStrategy,
@@ -84,11 +85,25 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
         )
         if not persisted_model:
             return None
+        weighted_properties: list[WeightedProperty] = []
+        for item in persisted_model.evaluation_criteria:
+            if isinstance(item, dict):
+                name = str(item.get("name", "")).strip()
+                if not name:
+                    continue
+                weight = float(item.get("weight", 1.0))
+                weighted_properties.append(WeightedProperty(name=name, weight=weight))
+            elif isinstance(item, str):
+                name = item.strip()
+                if not name:
+                    continue
+                # Backward compatibility for legacy cache rows that stored only property names.
+                weighted_properties.append(WeightedProperty(name=name, weight=1.0))
         return QuestionWithRewritesAndCorrectnessProps(
             question=question,
             perspective=perspective,
             rewritten_questions=persisted_model.query_rewrites,
-            properties_of_a_good_document_containing_all_perspectives=persisted_model.evaluation_criteria,
+            weighted_properties=weighted_properties,
         )
 
     def save(self, params: QuestionWithRewritesAndCorrectnessProps) -> None:
@@ -107,9 +122,10 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
             query_id=query_id,
             user_profile_id=perspective_id,
             query_rewrites=list(params.rewritten_questions),
-            evaluation_criteria=list(
-                params.properties_of_a_good_document_containing_all_perspectives,
-            ),
+            evaluation_criteria=[
+                {"name": prop.name, "weight": prop.weight}
+                for prop in params.weighted_properties
+            ],
         )
         pydantic_caching.save_sqlmodels_to_db([persistence_obj])
 

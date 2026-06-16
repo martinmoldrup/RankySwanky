@@ -4,6 +4,7 @@ Store models for doing caching and persistence for the retrieval system.
 To ensure expensive operations like comparing documents, doing text embeddings or calculating relevance scores are not repeated unnecessarily,
 """
 from datetime import datetime
+from typing import Any
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
@@ -91,9 +92,9 @@ class QueryEvaluationCriteriaCache(SQLModel, table=True):  # Has data, Approach 
         description="List of rewritten questions based on the original question and perspective.",
         sa_column=Column(JSON),
     )
-    evaluation_criteria: list[str] = Field(
+    evaluation_criteria: list[dict[str, Any]] = Field(
         default_factory=list,
-        description="List of properties that a correct answer should have.",
+        description="List of weighted properties with name and normalized weight.",
         sa_column=Column(JSON),
     )
 
@@ -216,5 +217,5 @@ if __name__ == "__main__":
     from eralchemy import render_er
     render_er(
         input=SQLModel.metadata,
-        output="docs/caching_models2.png",
+        output="docs/caching_models.png",
     )

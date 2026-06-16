@@ -12,13 +12,21 @@ class QuestionWithRewrites:
 
 
 @dataclass
+class WeightedProperty:
+    """Weighted validation property describing a criterion and its importance."""
+
+    name: str
+    weight: float
+
+
+@dataclass
 class QuestionWithRewritesAndCorrectnessProps:
     """Final model combining rewritten questions and properties of a correct answer."""
 
     rewritten_questions: list[str]
     question: str
     perspective: str
-    properties_of_a_good_document_containing_all_perspectives: list[str]
+    weighted_properties: list[WeightedProperty]
 
 
 @dataclass
