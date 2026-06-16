@@ -92,7 +92,13 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
         )
 
     def save(self, params: QuestionWithRewritesAndCorrectnessProps) -> None:
-        """Save a QuestionWithRewritesAndCorrectnessProps to the database."""
+        """
+        Save a QuestionWithRewritesAndCorrectnessProps to the database.
+
+        Precondition:
+            Matching query and user profile rows must already exist.
+            In the application flow this is ensured by CacheAwareEvaluationCoordinator.
+        """
         query_id = self.query_id_strategy(params.question)
         perspective_id = self.perspective_id_strategy(params.perspective)
         row_id = self.gen_eval_id_strategy(query_id, perspective_id)
@@ -152,7 +158,14 @@ class DocumentRepositorySQLite(DocumentRepository):
         )
 
     def save(self, question: str, perspective: str, document_content: str, params: RetrievedDocumentStatistics) -> None:
-        """Save a RetrievedDocumentStatistics to the database."""
+        """
+        Save a RetrievedDocumentStatistics to the database.
+
+        Preconditions:
+            Query, user profile, and query evaluation criteria rows must already exist,
+            because this row references all three via foreign keys.
+            In the application flow this is ensured by CacheAwareEvaluationCoordinator.
+        """
         query_id = self.query_id_strategy(question)
         perspective_id = self.perspective_id_strategy(perspective)
         document_id = self.document_id_strategy(document_content)

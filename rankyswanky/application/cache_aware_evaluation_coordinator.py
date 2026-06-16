@@ -161,6 +161,38 @@ class CacheAwareEvaluationCoordinator:
         self.question_criteria_repo.save(criteria)
         return criteria
 
+    def prepare_question_context(
+        self,
+        question: str,
+        perspective: str,
+        compute_criteria_fn: Callable[[str, str], QuestionWithRewritesAndCorrectnessProps],
+        profile_description: str = "",
+    ) -> QuestionWithRewritesAndCorrectnessProps:
+        """
+        Prepare cache context for a question and return evaluation criteria.
+
+        This is the preferred high-level orchestration entrypoint for callers.
+        It ensures query and user profile rows are cached before reading/writing
+        question criteria, keeping cache orchestration in a single place.
+
+        Args:
+            question: The question/query text.
+            perspective: The user perspective for the question.
+            compute_criteria_fn: Callable used to compute criteria on cache miss.
+            profile_description: Optional profile description for first-time inserts.
+
+        Returns:
+            Cached or newly computed question criteria.
+
+        """
+        self.ensure_query_cached(question)
+        self.ensure_user_profile_cached(perspective, profile_description)
+        return self.get_or_create_question_criteria(
+            question=question,
+            perspective=perspective,
+            compute_fn=compute_criteria_fn,
+        )
+
     def get_or_create_document_evaluation(
         self,
         question: str,

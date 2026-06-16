@@ -197,12 +197,10 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
     def set_question(self, question: str) -> None:
         self.reset()
         self._question = question
-        self._cache_coordinator.ensure_query_cached(question)
-        self._cache_coordinator.ensure_user_profile_cached(self._perspective)
-        self._validation_criteria = self._cache_coordinator.get_or_create_question_criteria(
+        self._validation_criteria = self._cache_coordinator.prepare_question_context(
             question=question,
             perspective=self._perspective,
-            compute_fn=lambda q, p: self._extract_validation_criterias(q, p, self._llm),
+            compute_criteria_fn=lambda q, p: self._extract_validation_criterias(q, p, self._llm),
         )
         self._validation_criterias_met_history = dict.fromkeys(self._validation_criteria.properties_of_a_good_document_containing_all_perspectives, False)
 
