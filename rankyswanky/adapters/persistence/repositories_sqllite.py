@@ -6,9 +6,15 @@ from rankyswanky.adapters.persistence import (
 )
 from rankyswanky.adapters.persistence.caching_models import (
     Document as PersistedDocument,
+)
+from rankyswanky.adapters.persistence.caching_models import (
     DocumentRelevanceEvaluationCache,
-    Query as PersistedQuery,
     QueryEvaluationCriteriaCache,
+)
+from rankyswanky.adapters.persistence.caching_models import (
+    Query as PersistedQuery,
+)
+from rankyswanky.adapters.persistence.caching_models import (
     UserProfile as PersistedUserProfile,
 )
 from rankyswanky.models.metric_calculation_models import (
@@ -31,6 +37,8 @@ class SQLiteCachingStrategy(CachingStrategy):
         """Initialize strategy with SQLite repository implementations."""
         self._question_criteria_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
         self._document_repo = DocumentRepositorySQLite()
+        self._query_repo = QueryRepositorySQLite()
+        self._user_profile_repo = UserProfileRepositorySQLite()
 
     @property
     def question_criteria_repo(self) -> QuestionWithRewritesAndCorrectnessPropsRepository:
@@ -41,6 +49,16 @@ class SQLiteCachingStrategy(CachingStrategy):
     def document_repo(self) -> DocumentRepository:
         """Return repository for document evaluation caching."""
         return self._document_repo
+
+    @property
+    def query_repo(self) -> QueryRepository:
+        """Return repository for query caching."""
+        return self._query_repo
+
+    @property
+    def user_profile_repo(self) -> UserProfileRepository:
+        """Return repository for user profile caching."""
+        return self._user_profile_repo
 
 
 class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewritesAndCorrectnessPropsRepository):
@@ -78,16 +96,6 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
         query_id = self.query_id_strategy(params.question)
         perspective_id = self.perspective_id_strategy(params.perspective)
         row_id = self.gen_eval_id_strategy(query_id, perspective_id)
-        query_obj = PersistedQuery(
-            id=query_id,
-            text=params.question,
-            embedding_vector=[],
-        )
-        profile_obj = PersistedUserProfile(
-            id=perspective_id,
-            name=params.perspective,
-            description=params.perspective,
-        )
         persistence_obj = QueryEvaluationCriteriaCache(
             id=row_id,
             query_id=query_id,
@@ -97,7 +105,7 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
                 params.properties_of_a_good_document_containing_all_perspectives,
             ),
         )
-        pydantic_caching.save_sqlmodels_to_db([query_obj, profile_obj, persistence_obj])
+        pydantic_caching.save_sqlmodels_to_db([persistence_obj])
 
 
 class DocumentRepositorySQLite(DocumentRepository):
@@ -159,16 +167,6 @@ class DocumentRepositorySQLite(DocumentRepository):
             embedding_vector=[],
             hash=document_id,
         )
-        query_obj = PersistedQuery(
-            id=query_id,
-            text=question,
-            embedding_vector=[],
-        )
-        profile_obj = PersistedUserProfile(
-            id=perspective_id,
-            name=perspective,
-            description=perspective,
-        )
         persistence_obj = DocumentRelevanceEvaluationCache(
             id=primary_key_value,
             document_id=document_id,
@@ -179,7 +177,7 @@ class DocumentRepositorySQLite(DocumentRepository):
             criteria_met=params.evaluated_properties_of_a_good_document,
         )
         pydantic_caching.save_sqlmodels_to_db(
-            [document_obj, query_obj, profile_obj, persistence_obj],
+            [document_obj, persistence_obj],
         )
 
 

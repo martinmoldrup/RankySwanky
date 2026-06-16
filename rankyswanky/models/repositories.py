@@ -68,3 +68,13 @@ class CachingStrategy(ABC):
     @abstractmethod
     def document_repo(self) -> DocumentRepository:
         """Return repository for document evaluation caching."""
+
+    @property
+    @abstractmethod
+    def query_repo(self) -> QueryRepository:
+        """Return repository for query caching."""
+
+    @property
+    @abstractmethod
+    def user_profile_repo(self) -> UserProfileRepository:
+        """Return repository for user profile caching."""

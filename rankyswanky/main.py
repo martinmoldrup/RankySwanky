@@ -15,6 +15,9 @@ from rankyswanky.application.builders.search_evaluation_run_builder import (
 from rankyswanky.application.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
+from rankyswanky.application.cache_aware_evaluation_coordinator import (
+    CacheAwareEvaluationCoordinator,
+)
 from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
 from rankyswanky.models.repositories import CachingStrategy
 from rankyswanky.models.retrieval_evaluation_models import (
@@ -64,11 +67,16 @@ class RankySwanky:
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
+        cache_coordinator = CacheAwareEvaluationCoordinator(
+            question_criteria_repo=self._caching_strategy.question_criteria_repo,
+            document_repo=self._caching_strategy.document_repo,
+            query_repo=self._caching_strategy.query_repo,
+            user_profile_repo=self._caching_strategy.user_profile_repo,
+        )
         relevance_evaluator = RelevanceEvaluator(
             llm=self._chat_llm,
-            caching_repo=self._caching_strategy.question_criteria_repo,
+            cache_coordinator=cache_coordinator,
             perspective=self._perspective,
-            document_repo=self._caching_strategy.document_repo,
         )
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder,
@@ -160,11 +168,16 @@ class AsyncRankySwanky(RankySwanky):
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
+        cache_coordinator = CacheAwareEvaluationCoordinator(
+            question_criteria_repo=self._caching_strategy.question_criteria_repo,
+            document_repo=self._caching_strategy.document_repo,
+            query_repo=self._caching_strategy.query_repo,
+            user_profile_repo=self._caching_strategy.user_profile_repo,
+        )
         relevance_evaluator = RelevanceEvaluator(
             llm=self._chat_llm,
-            caching_repo=self._caching_strategy.question_criteria_repo,
+            cache_coordinator=cache_coordinator,
             perspective=self._perspective,
-            document_repo=self._caching_strategy.document_repo,
         )
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder,

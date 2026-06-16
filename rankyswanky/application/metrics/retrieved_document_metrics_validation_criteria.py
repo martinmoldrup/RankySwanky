@@ -8,13 +8,15 @@ import re
 from genson import SchemaBuilder
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
+from rankyswanky.application.cache_aware_evaluation_coordinator import (
+    CacheAwareEvaluationCoordinator,
+)
 from rankyswanky.application.metrics.abstract_retrieved_document_metrics import RelevanceEvaluatorBase
 from rankyswanky.models.metric_calculation_models import (
     QuestionWithRewrites,
     QuestionWithRewritesAndCorrectnessProps,
     RetrievedDocumentStatistics,
 )
-from rankyswanky.models.repositories import DocumentRepository, QuestionWithRewritesAndCorrectnessPropsRepository
 from rankyswanky.models.retrieval_evaluation_models import RetrievedDocumentMetrics
 from typing import Any
 
@@ -176,10 +178,14 @@ def _evaluate_document_properties(
 class RelevanceEvaluator(RelevanceEvaluatorBase):
     """Evaluates the relevance of retrieved documents for a given query."""
 
-    def __init__(self, llm: BaseChatModel, caching_repo: QuestionWithRewritesAndCorrectnessPropsRepository, perspective: str, document_repo: DocumentRepository) -> None:
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        cache_coordinator: CacheAwareEvaluationCoordinator,
+        perspective: str,
+    ) -> None:
         self._llm = llm
-        self._caching_repo = caching_repo
-        self._document_repo = document_repo
+        self._cache_coordinator = cache_coordinator
         self._perspective = perspective
         self.reset()
 
@@ -191,20 +197,14 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
     def set_question(self, question: str) -> None:
         self.reset()
         self._question = question
-        self._validation_criteria = self._get_validation_criteria_with_caching(
+        self._cache_coordinator.ensure_query_cached(question)
+        self._cache_coordinator.ensure_user_profile_cached(self._perspective)
+        self._validation_criteria = self._cache_coordinator.get_or_create_question_criteria(
             question=question,
             perspective=self._perspective,
+            compute_fn=lambda q, p: self._extract_validation_criterias(q, p, self._llm),
         )
         self._validation_criterias_met_history = dict.fromkeys(self._validation_criteria.properties_of_a_good_document_containing_all_perspectives, False)
-
-    def _get_validation_criteria_with_caching(self, question: str, perspective: str) -> QuestionWithRewritesAndCorrectnessProps:
-        """Get validation criteria, using caching to avoid redundant LLM calls."""
-        cached = self._caching_repo.get_by_question_and_perspective(question, perspective)
-        if cached:
-            return cached
-        new_criteria = self._extract_validation_criterias(question, perspective, self._llm)
-        self._caching_repo.save(new_criteria)
-        return new_criteria
 
     def _extract_validation_criterias(
         self,
@@ -230,28 +230,32 @@ class RelevanceEvaluator(RelevanceEvaluatorBase):
         """Calculates the relevance score of a document based on the question."""
         if not self._validation_criteria:
             raise ValueError("Validation criteria not set. Call set_question() first.")
-        cached = self._document_repo.get_by_question_and_perspective_and_document(
+        return self._cache_coordinator.get_or_create_document_evaluation(
             question=self._question,
             perspective=self._perspective,
             document_content=document_content,
+            compute_fn=lambda q, _p, d: self._compute_document_statistics(q, d),
         )
-        if cached:
-            return cached
+
+    def _compute_document_statistics(
+        self,
+        question: str,
+        document_content: str,
+    ) -> RetrievedDocumentStatistics:
+        """Compute document statistics without any cache logic."""
+        if not self._validation_criteria:
+            raise ValueError("Validation criteria not set. Call set_question() first.")
         evaluated_criteria = _evaluate_document_properties(
-            question=self._question,
+            question=question,
             properties=self._validation_criteria.properties_of_a_good_document_containing_all_perspectives,
             document=document_content,
             llm=self._llm,
         )
         relevance = evaluated_criteria.count_validation_criterias_met() / len(evaluated_criteria)
-        retrieved_document_stats = RetrievedDocumentStatistics(relevance=relevance, evaluated_properties_of_a_good_document=evaluated_criteria.evaluation)
-        self._document_repo.save(
-            question=self._question,
-            perspective=self._perspective,
-            document_content=document_content,
-            params=retrieved_document_stats,
+        return RetrievedDocumentStatistics(
+            relevance=relevance,
+            evaluated_properties_of_a_good_document=evaluated_criteria.evaluation,
         )
-        return retrieved_document_stats
 
     def create_retrieved_document_metrics(self, document_content: str) -> RetrievedDocumentMetrics:
         """Calculates the relevance score of a document based on the question."""
