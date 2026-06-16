@@ -54,3 +54,17 @@ class UserProfileRepository(ABC):
     @abstractmethod
     def save(self, name: str, description: str = "") -> str:
         """Save a user profile and return its generated ID."""
+
+
+class CachingStrategy(ABC):
+    """Bundles the cache repositories required by evaluation components."""
+
+    @property
+    @abstractmethod
+    def question_criteria_repo(self) -> QuestionWithRewritesAndCorrectnessPropsRepository:
+        """Return repository for question criteria caching."""
+
+    @property
+    @abstractmethod
+    def document_repo(self) -> DocumentRepository:
+        """Return repository for document evaluation caching."""

@@ -5,13 +5,10 @@ from rankyswanky.adapters.persistence import (
     pydantic_caching,
 )
 from rankyswanky.adapters.persistence.caching_models import (
+    Document as PersistedDocument,
     DocumentRelevanceEvaluationCache,
-    QueryEvaluationCriteriaCache,
-)
-from rankyswanky.adapters.persistence.caching_models import (
     Query as PersistedQuery,
-)
-from rankyswanky.adapters.persistence.caching_models import (
+    QueryEvaluationCriteriaCache,
     UserProfile as PersistedUserProfile,
 )
 from rankyswanky.models.metric_calculation_models import (
@@ -19,11 +16,31 @@ from rankyswanky.models.metric_calculation_models import (
     RetrievedDocumentStatistics,
 )
 from rankyswanky.models.repositories import (
+    CachingStrategy,
     DocumentRepository,
     QueryRepository,
     QuestionWithRewritesAndCorrectnessPropsRepository,
     UserProfileRepository,
 )
+
+
+class SQLiteCachingStrategy(CachingStrategy):
+    """Default SQLite-backed caching strategy for evaluation."""
+
+    def __init__(self) -> None:
+        """Initialize strategy with SQLite repository implementations."""
+        self._question_criteria_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
+        self._document_repo = DocumentRepositorySQLite()
+
+    @property
+    def question_criteria_repo(self) -> QuestionWithRewritesAndCorrectnessPropsRepository:
+        """Return repository for question criteria caching."""
+        return self._question_criteria_repo
+
+    @property
+    def document_repo(self) -> DocumentRepository:
+        """Return repository for document evaluation caching."""
+        return self._document_repo
 
 
 class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewritesAndCorrectnessPropsRepository):
@@ -61,6 +78,16 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
         query_id = self.query_id_strategy(params.question)
         perspective_id = self.perspective_id_strategy(params.perspective)
         row_id = self.gen_eval_id_strategy(query_id, perspective_id)
+        query_obj = PersistedQuery(
+            id=query_id,
+            text=params.question,
+            embedding_vector=[],
+        )
+        profile_obj = PersistedUserProfile(
+            id=perspective_id,
+            name=params.perspective,
+            description=params.perspective,
+        )
         persistence_obj = QueryEvaluationCriteriaCache(
             id=row_id,
             query_id=query_id,
@@ -70,7 +97,7 @@ class QuestionWithRewritesAndCorrectnessPropsRepositorySQLite(QuestionWithRewrit
                 params.properties_of_a_good_document_containing_all_perspectives,
             ),
         )
-        pydantic_caching.save_sqlmodels_to_db([persistence_obj])
+        pydantic_caching.save_sqlmodels_to_db([query_obj, profile_obj, persistence_obj])
 
 
 class DocumentRepositorySQLite(DocumentRepository):
@@ -126,6 +153,22 @@ class DocumentRepositorySQLite(DocumentRepository):
             perspective_id=perspective_id,
             document_id=document_id,
         )
+        document_obj = PersistedDocument(
+            id=document_id,
+            content=document_content,
+            embedding_vector=[],
+            hash=document_id,
+        )
+        query_obj = PersistedQuery(
+            id=query_id,
+            text=question,
+            embedding_vector=[],
+        )
+        profile_obj = PersistedUserProfile(
+            id=perspective_id,
+            name=perspective,
+            description=perspective,
+        )
         persistence_obj = DocumentRelevanceEvaluationCache(
             id=primary_key_value,
             document_id=document_id,
@@ -135,7 +178,9 @@ class DocumentRepositorySQLite(DocumentRepository):
             query_evaluation_criteria_id=self.query_evaluation_criterias_id_strategy(query_id, perspective_id),
             criteria_met=params.evaluated_properties_of_a_good_document,
         )
-        pydantic_caching.save_sqlmodels_to_db([persistence_obj])
+        pydantic_caching.save_sqlmodels_to_db(
+            [document_obj, query_obj, profile_obj, persistence_obj],
+        )
 
 
 class QueryRepositorySQLite(QueryRepository):

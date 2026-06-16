@@ -6,8 +6,7 @@ from collections.abc import Awaitable, Callable
 from langchain_core.language_models import BaseChatModel
 from rankyswanky.adapters import llm
 from rankyswanky.adapters.persistence.repositories_sqllite import (
-    DocumentRepositorySQLite,
-    QuestionWithRewritesAndCorrectnessPropsRepositorySQLite,
+    SQLiteCachingStrategy,
 )
 from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.application.builders.search_evaluation_run_builder import (
@@ -17,6 +16,7 @@ from rankyswanky.application.builders.search_evaluation_run_director import (
     SearchEvaluationRunDirector,
 )
 from rankyswanky.application.metrics.retrieved_document_metrics_validation_criteria import RelevanceEvaluator
+from rankyswanky.models.repositories import CachingStrategy
 from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     SearchEvaluationRunCollection,
@@ -34,11 +34,13 @@ class RankySwanky:
         retriever: Callable[[str], list[str]] | None = None,
         chat_llm: BaseChatModel = llm.chat_llm,
         perspective: str = "You are a person seeking to understand all sides of an issue thoroughly.",
+        caching_strategy: CachingStrategy | None = None,
     ) -> None:
         """Initializes RankySwanky with optional single retriever."""
         self.engines: dict[str, Callable[[str], list[str]]] = {}
         self._chat_llm = chat_llm
         self._perspective = perspective
+        self._caching_strategy: CachingStrategy = caching_strategy or SQLiteCachingStrategy()
         if retriever is not None:
             self.engines["default"] = retriever
 
@@ -62,13 +64,11 @@ class RankySwanky:
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
-        caching_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
-        document_repo = DocumentRepositorySQLite()
         relevance_evaluator = RelevanceEvaluator(
             llm=self._chat_llm,
-            caching_repo=caching_repo,
+            caching_repo=self._caching_strategy.question_criteria_repo,
             perspective=self._perspective,
-            document_repo=document_repo,
+            document_repo=self._caching_strategy.document_repo,
         )
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder,
@@ -127,11 +127,13 @@ class AsyncRankySwanky(RankySwanky):
         retriever: Callable[[str], Awaitable[list[str]]] | None = None,
         chat_llm: BaseChatModel = llm.chat_llm,
         perspective: str = "You are a person seeking to understand all sides of an issue thoroughly.",
+        caching_strategy: CachingStrategy | None = None,
     ) -> None:
         """Initializes AsyncRankySwanky with optional single async retriever."""
         self.engines: dict[str, Callable[[str], Awaitable[list[str]]]] = {}  # type: ignore[assignment]
         self._chat_llm = chat_llm
         self._perspective = perspective
+        self._caching_strategy: CachingStrategy = caching_strategy or SQLiteCachingStrategy()
         if retriever is not None:
             self.engines["default"] = retriever
 
@@ -158,13 +160,11 @@ class AsyncRankySwanky(RankySwanky):
             test_configuration = TestConfiguration()
         search_evaluation_builder = SearchEvaluationRunBuilder()
         query_results_builder = QueryResultsBuilder()
-        caching_repo = QuestionWithRewritesAndCorrectnessPropsRepositorySQLite()
-        document_repo = DocumentRepositorySQLite()
         relevance_evaluator = RelevanceEvaluator(
             llm=self._chat_llm,
-            caching_repo=caching_repo,
+            caching_repo=self._caching_strategy.question_criteria_repo,
             perspective=self._perspective,
-            document_repo=document_repo,
+            document_repo=self._caching_strategy.document_repo,
         )
         search_evaluation_director = SearchEvaluationRunDirector(
             search_evaluation_builder,
