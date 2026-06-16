@@ -7,16 +7,30 @@ from __future__ import annotations
 
 import pathlib
 from rankyswanky.adapters.persistence.caching_models import Document
+from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel, create_engine
 from typing import TypeVar
 
 T = TypeVar("T", bound=SQLModel)
 
 DB_PATH = "documents.db"
+_ENGINES: dict[str, Engine] = {}
+
+
+def _get_engine(db_path: str = DB_PATH) -> Engine:
+    """Return a cached SQLAlchemy engine for the given database path."""
+    engine = _ENGINES.get(db_path)
+    if engine is None:
+        engine = create_engine(f"sqlite:///{db_path}")
+        _ENGINES[db_path] = engine
+    return engine
 
 
 def clear_database(db_path: str = DB_PATH) -> None:
     """Deletes the db file."""
+    engine = _ENGINES.pop(db_path, None)
+    if engine is not None:
+        engine.dispose()
     db_file = pathlib.Path(db_path)
     if db_file.exists():
         db_file.unlink()
@@ -26,13 +40,13 @@ def create_schema(db_path: str = DB_PATH) -> None:
     """Create the documents table schema in the SQLite database."""
     if pathlib.Path(db_path).exists():
         return
-    engine = create_engine(f"sqlite:///{db_path}")
+    engine = _get_engine(db_path)
     SQLModel.metadata.create_all(engine)
 
 
 def save_document_to_db(document: Document, db_path: str = DB_PATH) -> None:
     """Save a Document instance to the SQLite database."""
-    engine = create_engine(f"sqlite:///{db_path}")
+    engine = _get_engine(db_path)
     with Session(engine) as session:
         session.merge(document)
         session.commit()
@@ -42,14 +56,14 @@ def get_sqlmodel_by_primary_key(
     model: type[T], primary_key_value: str, db_path: str = DB_PATH,
 ) -> T | None:
     """Retrieve a SQLModel instance by its primary key from the SQLite database."""
-    engine = create_engine(f"sqlite:///{db_path}")
+    engine = _get_engine(db_path)
     with Session(engine) as session:
         return session.get(model, primary_key_value)
 
 
 def save_sqlmodels_to_db(models: list[SQLModel], db_path: str = DB_PATH) -> None:
     """Save a list of SQLModel instances to the SQLite database."""
-    engine = create_engine(f"sqlite:///{db_path}")
+    engine = _get_engine(db_path)
     with Session(engine) as session:
         for model in models:
             session.merge(model)
