@@ -3,7 +3,6 @@ Store models for doing caching and persistence for the retrieval system.
 
 To ensure expensive operations like comparing documents, doing text embeddings or calculating relevance scores are not repeated unnecessarily,
 """
-import enum
 from datetime import datetime
 from sqlmodel import JSON, Column, Field, SQLModel
 
@@ -54,6 +53,7 @@ class Query(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the query was created."""
 
+
 class UserProfile(SQLModel, table=True):
     """A user profile representing a perspective from which queries and documents can be evaluated."""
 
@@ -70,6 +70,7 @@ class UserProfile(SQLModel, table=True):
 
     timestamp: datetime = Field(default_factory=datetime.now)
     """The timestamp when the user profile was created."""
+
 
 class QueryEvaluationCriteriaCache(SQLModel, table=True):  # Has data, Approach 2
     """Parameters for generating and evaluating questions."""
@@ -121,7 +122,7 @@ class DocumentRelevanceEvaluationCache(SQLModel, table=True):  # Has data, Appro
     """The relevance score of the document for the question."""
 
     query_evaluation_criteria_id: str = Field(
-        foreign_key="query_evaluation_criteria_cache.id"
+        foreign_key="query_evaluation_criteria_cache.id",
     )
     """FOREIGN_KEY:QueryEvaluationCriteriaCache.id. The ID of the query evaluation criteria."""
 

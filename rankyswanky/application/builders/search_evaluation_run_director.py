@@ -1,4 +1,5 @@
 import time
+import logging
 from collections.abc import Callable
 from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.application.builders.search_evaluation_run_builder import (
@@ -12,8 +13,6 @@ from rankyswanky.models.retrieval_evaluation_models import (
     SearchEvaluationRun,
     TestConfiguration,
 )
-import logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,6 @@ class SearchEvaluationRunDirector:
         relevance_evaluator: RelevanceEvaluatorBase,
     ) -> None:
         """Initialize the director with a builder."""
-
         self._builder = evaluation_run_builder
         """The main object we are building for a bulk evaluation run, we build a single of these per run."""
 

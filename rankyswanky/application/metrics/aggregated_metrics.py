@@ -45,7 +45,7 @@ def calculate_metrics_at_k(documents: list[RetrievedDocument], k_value: int) -> 
     if relevant_document_count:
         recall = relevant_docs_within_k / relevant_document_count
     else:
-        recall = 0.0    
+        recall = 0.0
     ndcg = calculate_ndcg(gains)
     return RetrievalMetricsAtK(
         precision=precision,

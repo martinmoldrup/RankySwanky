@@ -25,6 +25,7 @@ from rankyswanky.models.retrieval_evaluation_models import (
 
 logger = logging.getLogger(__name__)
 
+
 class RankySwanky:
     """Wraps search engines or retrievers and provides evaluation methods."""
 
@@ -220,6 +221,7 @@ class AsyncRankySwanky(RankySwanky):
         instance = cls()
         instance.add_retrievers(retrievers)
         return instance.evaluate(queries, test_configuration)
+
 
 if __name__ == "__main__":
     query = "What is the capital of France?"

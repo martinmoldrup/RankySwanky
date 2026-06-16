@@ -36,9 +36,21 @@ class QueryRepository(ABC):
     """Repository for Query persistence."""
 
     @abstractmethod
-    def get_by_id(self, query_id: str) -> str | None:
-        """Retrieve a query by its ID."""
+    def get_by_text(self, query_text: str) -> str | None:
+        """Retrieve a query by its text, returning the query ID if cached."""
 
     @abstractmethod
-    def save(self, query_id: str, content: str) -> None:
-        """Save a query with its ID and content."""
+    def save(self, query_text: str) -> str:
+        """Save a query and return its generated ID."""
+
+
+class UserProfileRepository(ABC):
+    """Repository for UserProfile persistence."""
+
+    @abstractmethod
+    def get_by_name(self, name: str) -> str | None:
+        """Retrieve a user profile ID by its name."""
+
+    @abstractmethod
+    def save(self, name: str, description: str = "") -> str:
+        """Save a user profile and return its generated ID."""
