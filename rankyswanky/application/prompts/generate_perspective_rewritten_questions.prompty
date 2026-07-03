@@ -1,0 +1,21 @@
+---
+name: generate_perspective_rewritten_questions
+description: Get rewritten questions from the LLM based on the original question and perspective.
+inputs:
+  question:
+    type: string
+  perspective:
+    type: string
+sample:
+  question: How do I file a complaint?
+  perspective: |
+    As a customer service representative, I want to ensure that customers have a clear and easy way to file complaints so that we can address their concerns promptly and improve our services.
+---
+system:
+Rewrite the following question to be specific and actionable for the given perspective.
+
+Original Question: {{ question }}
+Perspective:
+{{ perspective }}
+
+Return a list of 3 rewritten questions, each tailored to the perspective.

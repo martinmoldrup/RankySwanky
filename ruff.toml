@@ -1,0 +1,25 @@
+# Support longer lines, but try to keep them under 88 for most cases (add a ruler to code editor)
+line-length = 120
+indent-width = 4
+
+# Assume Python 3.10
+target-version = "py310"
+output-format = "concise"
+
+[lint]
+preview = true
+select = ["ALL"]
+ignore = ["CPY001", "PLR6301", "D212", "D203", "TC001", "S101", "DOC201","RET504", "DOC501","FBT001", "FBT003","TD002","TD003","FIX002","ERA001"]
+
+# TODO: Remove ERA001 (Found "Found commented-out code") ignore
+
+[lint.isort]
+no-sections = true
+length-sort-straight = true
+order-by-type = true
+
+[format]
+preview = true
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

@@ -5,15 +5,52 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "azure-identity>=1.25.1",
+    "azure-search-documents>=11.5.3",
+    "durable-rules>=2.0.28",
+    "eralchemy>=1.6.0",
+    "genson>=1.3.0",
+    "import-linter>=2.5",
     "langchain>=0.3.25",
     "langchain-openai>=0.3.24",
+    "neo4j>=5.28.2",
+    "neo4j-graphrag>=1.9.1",
+    "networkx>=3.5",
+    "openai>=1.109.1",
+    "openskill>=6.2.0",
+    "owlrl>=7.1.3",
+    "prompty>=0.1.50",
     "ragas>=0.2.15",
+    "rdflib>=7.1.4",
+    "rich>=14.1.0",
+    "scipy>=1.16.0",
+    "snappylapy>=0.10.0",
+    "sqlalchemy>=2.0.41",
+    "sqlmodel>=0.0.24",
 ]
+
+[project.urls]
+Homepage = "https://github.com/martinmoldrup/rankyswanky"
+# Documentation = "https://readthedocs.org"
+Repository = "https://github.com/martinmoldrup/rankyswanky"
+Issues = "https://github.com/martinmoldrup/rankyswanky/issues"
+Changelog = "https://github.com/martinmoldrup/rankyswanky/blob/master/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
-    "erdantic>=1.1.0.post1",
+    "erdantic>=1.1.1",
     "mypy>=1.16.1",
     "pytest>=8.4.1",
     "ruff>=0.12.0",
+    "snappylapy>=0.5.1",
 ]
+
+[build-system]  
+requires = ["setuptools>=61.0"]  
+build-backend = "setuptools.build_meta"  
+
+[tool.setuptools]  
+packages = ["rankyswanky"]  
+
+[tool.setuptools.package-data]
+rankyswanky = ["**/*.py", "py.typed"]
