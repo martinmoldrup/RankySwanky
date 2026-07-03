@@ -48,7 +48,7 @@ The approach is simple and straightforward, but it can be noisy since the LLM do
 ## Approach 2:
 An alternative approach is to first ask the LLM to figure out for a given question, what are the different relevant dimensions of this question. When we do that we can provide a profile of the user, since relevance can be subjective and depend on the user's background, preferences, etc. 
 
-Now that we have all the different dimensions, we use these dimensions and structured output to asign boolean values to each result for each dimension. This approach has the additional advantage that we have have details we can use to analyze novelty as well as relevance. If a result is adding information to a dimension that has already been covered, that does not add as much gain as if it is adding information to a dimension that has not been covered at all.
+Now that we have all the different dimensions, we use these dimensions and structured output to assign boolean values to each result for each dimension. This approach has the additional advantage that we have have details we can use to analyze novelty as well as relevance. If a result is adding information to a dimension that has already been covered, that does not add as much gain as if it is adding information to a dimension that has not been covered at all.
 
 This approach is implemented in `rankyswanky\application\metrics\retrieved_document_metrics_validation_criteria.py`
 

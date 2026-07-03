@@ -1,6 +1,7 @@
 import time
 import logging
 from collections.abc import Callable
+from rankyswanky.exceptions import RetrieverResultsTypeError, RetrieverResultsEmptyError
 from rankyswanky.application.builders.query_results_builder import QueryResultsBuilder
 from rankyswanky.application.builders.search_evaluation_run_builder import (
     SearchEvaluationRunBuilder,
@@ -52,6 +53,19 @@ class SearchEvaluationRunDirector:
             logger.info(f"Evaluating query {i + 1}/{len(queries)}: {query}")
             start_time: float = time.time()
             results: list[str] = retriever(query)
+            if len(results) < 1:
+                raise RetrieverResultsEmptyError(
+                    f"Retriever returned an empty list of results for query: '{query}'"
+                )
+            if not isinstance(results, list):
+                raise RetrieverResultsTypeError(
+                    f"Retriever returned results in an unexpected format for query: '{query}'. Expected a list of strings, got {type(results)}"
+                )
+            for result in results:
+                if not isinstance(result, str):
+                    raise RetrieverResultsTypeError(
+                        f"Retriever returned results in an unexpected format for query: '{query}'. Expected a list of strings, but got a list containing an element of type {type(result)}"
+                    )
             elapsed_ms: int = round(
                 (time.time() - start_time) * 1000,
             )  # Convert to milliseconds
